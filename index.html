@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#121820">
+    <title>Aeon Chess</title>
+    <link rel="stylesheet" href="./vendor/cm-chessboard/assets/chessboard.css">
+    <link rel="stylesheet" href="./vendor/cm-chessboard/assets/extensions/markers/markers.css">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CHESS ENGINE</p>
+          <h1>Aeon</h1>
+        </div>
+        <span id="engine-status" class="engine-status" aria-live="polite">Loading engine...</span>
+      </header>
+
+      <section class="game-layout" aria-label="Chess game">
+        <div class="board-column">
+          <div id="board" class="board" aria-label="Chess board"></div>
+          <div class="board-footer">
+            <span id="turn-label">White to move</span>
+            <span id="move-label">New game</span>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <div id="message" class="message" aria-live="polite">Starting Aeon...</div>
+
+          <label class="control">
+            <span>You play</span>
+            <select id="human-color" disabled>
+              <option value="w">White</option>
+              <option value="b">Black</option>
+            </select>
+          </label>
+
+          <label class="control">
+            <span>Time per move</span>
+            <select id="move-time" disabled>
+              <option value="500">Quick - 0.5 s</option>
+              <option value="1200" selected>Normal - 1.2 s</option>
+              <option value="2500">Deeper - 2.5 s</option>
+              <option value="5000">Long - 5 s</option>
+            </select>
+          </label>
+
+          <button id="new-game" class="primary" type="button" disabled>New game</button>
+          <div class="moves-heading">Moves</div>
+          <ol id="moves" class="moves" aria-label="Move history"></ol>
+          <p class="hint">Drag a piece, or click it and its destination. Promotions default to a queen.</p>
+        </aside>
+      </section>
+      <footer class="footer">Runs locally in your browser with WebAssembly. No game server. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

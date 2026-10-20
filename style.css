@@ -1,0 +1,86 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  background: #121820;
+  color: #f4f2ed;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --panel: #1b242d;
+  --muted: #a7b0b8;
+  --green: #a8c985;
+  --light-square: #e8dfca;
+  --dark-square: #718b75;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+
+.app { width: min(1080px, 100% - 32px); margin: 0 auto; padding: 28px 0 20px; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+.eyebrow { margin: 0 0 4px; color: var(--green); font-size: 11px; font-weight: 750; letter-spacing: .16em; }
+h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+.engine-status { color: var(--muted); font-size: 13px; }
+.engine-status.ready { color: var(--green); }
+.engine-status.error { color: #f18d84; }
+
+.game-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 300px); gap: 22px; align-items: start; }
+.board-column { min-width: 0; }
+.board {
+  width: 100%;
+  max-width: 660px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 5px solid #26323a;
+  border-radius: 8px;
+  box-shadow: 0 16px 40px #0004;
+  touch-action: none;
+}
+.board > div { width: 100%; height: 100%; }
+.board svg.cm-chessboard { display: block; width: 100%; height: 100%; }
+.board.locked { cursor: wait; }
+.board.locked svg.cm-chessboard { cursor: wait; }
+.cm-chessboard.aeon .board .square.white { fill: var(--light-square); }
+.cm-chessboard.aeon .board .square.black { fill: var(--dark-square); }
+.cm-chessboard.aeon.border-type-none .board .border { fill: var(--dark-square); stroke: none; }
+.cm-chessboard.aeon .coordinates .coordinate.white { fill: var(--dark-square); }
+.cm-chessboard.aeon .coordinates .coordinate.black { fill: var(--light-square); }
+.cm-chessboard.aeon .markers .marker.marker-square { fill: #e6c95b; opacity: .42; }
+.cm-chessboard.aeon .markers .marker.marker-frame { stroke: #e6c95b; stroke-width: 3px; opacity: .85; }
+.cm-chessboard.aeon .markers .marker.marker-dot { fill: #17251f; opacity: .38; }
+.cm-chessboard.aeon .markers .marker.marker-bevel { fill: transparent; stroke: #17251f; stroke-width: 3px; opacity: .55; }
+.board-footer { display: flex; justify-content: space-between; gap: 12px; padding: 11px 3px 0; color: var(--muted); font-size: 13px; }
+
+.panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--panel); border: 1px solid #2b3740; border-radius: 9px; }
+.message { min-height: 42px; display: flex; align-items: center; color: var(--green); font-weight: 650; }
+.control { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+select, button { font: inherit; }
+select { width: 100%; padding: 10px 11px; color: #f4f2ed; background: #121a21; border: 1px solid #39464e; border-radius: 6px; }
+button.primary { padding: 11px; color: #172018; font-weight: 750; background: var(--green); border: 0; border-radius: 6px; cursor: pointer; }
+button.primary:disabled, select:disabled { opacity: .55; cursor: wait; }
+.moves-heading { margin-top: 3px; font-size: 13px; font-weight: 700; }
+.moves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; max-height: 220px; overflow: auto; margin: 0; padding-left: 24px; color: #e8e5dc; font-variant-numeric: tabular-nums; }
+.moves li { padding: 3px 4px; }
+.hint, .footer { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.hint { margin: 0; }
+.footer { padding: 18px 2px 0; text-align: center; }
+.footer a { color: var(--green); }
+
+@media (max-width: 720px) {
+  .app { width: min(520px, 100% - 20px); padding-top: 16px; }
+  .game-layout { grid-template-columns: 1fr; gap: 14px; }
+  .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; padding: 14px; }
+  .message, .moves-heading, .moves, .hint { grid-column: 1 / -1; }
+  .message { min-height: 24px; }
+  .moves { max-height: 140px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button.primary { transition: filter 120ms ease; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+}
