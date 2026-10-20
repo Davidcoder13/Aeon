@@ -38,7 +38,6 @@ const board = new Chessboard(boardElement, {
   ]
 });
 
-const markers = board.getExtension(Markers);
 const boardSvg = boardElement.querySelector("svg");
 boardSvg?.setAttribute("aria-label", "Aeon chessboard");
 boardSvg?.setAttribute("aria-roledescription", "chessboard");
@@ -80,17 +79,30 @@ function isHumanTurn() {
 }
 
 function renderBoardMarkers() {
-  markers.removeMarkers();
+  // Safely get the markers extension instance at render time
+  const markersExt = board.getExtension(Markers);
+  if (!markersExt) return;
+
+  markersExt.removeMarkers();
+  
   if (highlightedMove) {
-    markers.addMarker(MARKER_TYPE.square, highlightedMove.slice(0, 2));
-    markers.addMarker(MARKER_TYPE.square, highlightedMove.slice(2, 4));
+    markersExt.addMarker(MARKER_TYPE.square, highlightedMove.slice(0, 2));
+    markersExt.addMarker(MARKER_TYPE.square, highlightedMove.slice(2, 4));
   }
+
   if (selectedSquare && isHumanTurn()) {
-    markers.addMarker(MARKER_TYPE.frame, selectedSquare);
+    markersExt.addMarker(MARKER_TYPE.frame, selectedSquare);
     const targets = legalMoves
       .filter((move) => move.slice(0, 2) === selectedSquare)
       .map((move) => ({ to: move.slice(2, 4), promotion: move[4] ?? null }));
-    markers.addLegalMovesMarkers(targets);
+    
+    // Fallback check to prevent crashes if the method name differs in the CDN bundle
+    if (typeof markersExt.addLegalMovesMarkers === "function") {
+      markersExt.addLegalMovesMarkers(targets);
+    } else if (typeof markersExt.showLegalMoves === "function") {
+      // Some versions use showLegalMoves instead
+      markersExt.showLegalMoves(targets);
+    }
   }
 }
 
