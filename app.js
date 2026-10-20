@@ -3,12 +3,12 @@ import {
   Chessboard,
   COLOR,
   INPUT_EVENT_TYPE
-} from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/Chessboard.js";
+} from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/Chessboard.js";
 import {
   Markers,
   MARKER_TYPE
-} from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/extensions/markers/Markers.js";
-import { Accessibility } from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/extensions/accessibility/Accessibility.js";
+} from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/markers/Markers.js";
+import { Accessibility } from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/accessibility/Accessibility.js";
 
 const boardElement = document.querySelector("#board");
 const messageElement = document.querySelector("#message");
@@ -23,7 +23,7 @@ const newGameButton = document.querySelector("#new-game");
 const board = new Chessboard(boardElement, {
   position: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
   orientation: COLOR.white,
-  assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/",
+  assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/",
   style: {
     cssClass: "aeon",
     borderType: BORDER_TYPE.none,
