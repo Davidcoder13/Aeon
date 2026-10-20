@@ -3,12 +3,12 @@ import {
   Chessboard,
   COLOR,
   INPUT_EVENT_TYPE
-} from "./vendor/cm-chessboard/src/Chessboard.js";
+} from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/Chessboard.js";
 import {
   Markers,
   MARKER_TYPE
-} from "./vendor/cm-chessboard/src/extensions/markers/Markers.js";
-import { Accessibility } from "./vendor/cm-chessboard/src/extensions/accessibility/Accessibility.js";
+} from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/extensions/markers/Markers.js";
+import { Accessibility } from "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/src/extensions/accessibility/Accessibility.js";
 
 const boardElement = document.querySelector("#board");
 const messageElement = document.querySelector("#message");
