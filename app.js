@@ -255,4 +255,8 @@ worker.onmessage = (event) => {
   if (data.error) task.reject(new Error(data.error));
   else task.resolve(data.result);
 };
-worker.onerror = (event) => showError(new Error(event.message || "Worker failed"));
+
+worker.onerror = (event) => {
+  console.error("Worker error details:", event);
+  showError(new Error(event.message || "Worker failed"));
+};
