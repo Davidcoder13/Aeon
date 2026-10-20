@@ -23,7 +23,7 @@ const newGameButton = document.querySelector("#new-game");
 const board = new Chessboard(boardElement, {
   position: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
   orientation: COLOR.white,
-  assetsUrl: new URL("./vendor/cm-chessboard/assets/", import.meta.url).href,
+  assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/",
   style: {
     cssClass: "aeon",
     borderType: BORDER_TYPE.none,
@@ -37,6 +37,7 @@ const board = new Chessboard(boardElement, {
     { class: Accessibility, props: { keyboardMoveInput: true, visuallyHidden: true } }
   ]
 });
+
 const markers = board.getExtension(Markers);
 const boardSvg = boardElement.querySelector("svg");
 boardSvg?.setAttribute("aria-label", "Aeon chessboard");
