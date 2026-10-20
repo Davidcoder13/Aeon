@@ -1,10 +1,16 @@
 <!doctype html>
 <html lang="en">
- <head>
+ <!DOCTYPE html>
+<html lang="en">
+  <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#121820">
     <title>Aeon Chess</title>
+
+    <!-- Optional CSP tag - MUST permit cdn.jsdelivr.net for scripts/connect/styles -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net;">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/chessboard.css"/>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/extensions/markers/markers.css"/>
     <link rel="stylesheet" href="style.css">
