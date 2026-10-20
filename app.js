@@ -257,6 +257,6 @@ worker.onmessage = (event) => {
 };
 
 worker.onerror = (event) => {
-  console.error("Worker error details:", event);
-  showError(new Error(event.message || "Worker failed"));
+  console.error("Worker failed to load or run. File path or syntax issue.", event);
+  showError(new Error(`Worker error: ${event.filename || 'unknown script'} line ${event.lineno || 0}`));
 };
