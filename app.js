@@ -232,7 +232,7 @@ board.enableMoveInput(handleMoveInput);
 newGameButton.addEventListener("click", () => resetGame().catch(showError));
 colorSelect.addEventListener("change", () => resetGame().catch(showError));
 
-worker = new Worker(new URL("./Aeon/engine-worker.js", import.meta.url), { type: "module" });
+worker = new Worker(new URL("engine-worker.js", import.meta.url), { type: "module" });
 worker.onmessage = (event) => {
   const data = event.data;
   if (data.type === "ready") {
