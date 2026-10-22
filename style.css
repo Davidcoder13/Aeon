@@ -28,6 +28,7 @@ h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
 .game-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 300px); gap: 22px; align-items: start; }
 .board-column { min-width: 0; }
 .board {
+  position: relative;
   width: 100%;
   max-width: 660px;
   aspect-ratio: 1;
@@ -39,6 +40,8 @@ h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
 }
 .board > div { width: 100%; height: 100%; }
 .board svg.cm-chessboard { display: block; width: 100%; height: 100%; }
+.board .user-arrows { position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.user-arrows line { stroke: #f2cc4d; stroke-width: .09; stroke-linecap: round; opacity: .88; }
 .board.locked { cursor: wait; }
 .board.locked svg.cm-chessboard { cursor: wait; }
 .cm-chessboard.aeon .board .square.white { fill: var(--light-square); }
@@ -54,11 +57,17 @@ h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
 
 .panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--panel); border: 1px solid #2b3740; border-radius: 9px; }
 .message { min-height: 42px; display: flex; align-items: center; color: var(--green); font-weight: 650; }
+.model-commentary { padding: 10px 11px; color: #f2e6bd; background: #252b2c; border-left: 3px solid #d2ad46; border-radius: 4px; font-size: 13px; line-height: 1.45; }
+.model-commentary:empty { display: none; }
 .control { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+.profile-note { margin: -7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 select, button { font: inherit; }
 select { width: 100%; padding: 10px 11px; color: #f4f2ed; background: #121a21; border: 1px solid #39464e; border-radius: 6px; }
 button.primary { padding: 11px; color: #172018; font-weight: 750; background: var(--green); border: 0; border-radius: 6px; cursor: pointer; }
 button.primary:disabled, select:disabled { opacity: .55; cursor: wait; }
+.archive { display: grid; gap: 8px; padding: 10px; color: var(--muted); background: #151d24; border: 1px solid #2b3740; border-radius: 6px; font-size: 11px; line-height: 1.4; }
+.archive button { padding: 8px 9px; color: #e9e6de; background: #26323a; border: 1px solid #3a4852; border-radius: 5px; cursor: pointer; }
+.archive button:disabled { opacity: .5; cursor: default; }
 .moves-heading { margin-top: 3px; font-size: 13px; font-weight: 700; }
 .moves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; max-height: 220px; overflow: auto; margin: 0; padding-left: 24px; color: #e8e5dc; font-variant-numeric: tabular-nums; }
 .moves li { padding: 3px 4px; }

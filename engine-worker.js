@@ -17,12 +17,12 @@ try {
   self.postMessage({ type: "init-error", message: String(error) });
 }
 
-// Define difficulty profiles (movetime in milliseconds)
-const DIFFICULTY_PROFILES = {
-  easy: 40,       // Fast, shallow search (drops pieces, misses simple tactics)
-  medium: 300,    // Moderate search time
-  hard: 1200,     // Default strong play
-  master: 3000    // Deep search
+// Named opponents currently share the shipped network. Their relative strength
+// comes from search time until separate trained networks are added.
+const OPPONENT_PROFILES = {
+  mark: { multiplier: 0.12, jitter: true },
+  aeon: { multiplier: 1, jitter: false },
+  desperado: { multiplier: 2.5, jitter: false }
 };
 
 self.onmessage = (event) => {
@@ -39,11 +39,12 @@ self.onmessage = (event) => {
       result = state(moves);
     } 
     else if (action === "search") {
-      // Determine effective movetime based on difficulty selection
-      let targetMovetime = DIFFICULTY_PROFILES[difficulty] ?? movetime;
+      // Scale the selected base time by opponent profile.
+      const profile = OPPONENT_PROFILES[difficulty] ?? OPPONENT_PROFILES.aeon;
+      let targetMovetime = Math.max(100, Math.min(8000, Math.round(movetime * profile.multiplier)));
 
-      // Add a slight humanizing jitter (+/- 20%) to lower tiers so response times vary naturally
-      if (difficulty === "easy" || difficulty === "medium") {
+      // Add mild timing variation to Mark's quick search.
+      if (profile.jitter) {
         const jitter = (Math.random() * 0.4) - 0.2; 
         targetMovetime = Math.max(20, Math.round(targetMovetime * (1 + jitter)));
       }

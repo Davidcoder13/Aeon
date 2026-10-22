@@ -34,6 +34,7 @@
 
         <aside class="panel">
           <div id="message" class="message" aria-live="polite">Starting Aeon...</div>
+          <div id="model-commentary" class="model-commentary" aria-live="polite"></div>
 
           <label class="control">
             <span>You play</span>
@@ -44,14 +45,14 @@
           </label>
 
           <label class="control">
-            <span>Difficulty</span>
+            <span>Opponent</span>
             <select id="difficulty" disabled>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard" selected>Hard</option>
-              <option value="master">Master</option>
+              <option value="mark">Mark - casual</option>
+              <option value="aeon" selected>Aeon - standard</option>
+              <option value="desperado">Desperado - deep search</option>
             </select>
           </label>
+          <p class="profile-note">All profiles currently use the same Aeon model; search time sets relative strength. Choose before the first move.</p>
 
           <label class="control">
             <span>Time per move</span>
@@ -64,9 +65,13 @@
           </label>
 
           <button id="new-game" class="primary" type="button" disabled>New game</button>
+          <section class="archive" aria-label="Game archive">
+            <div id="archive-status" aria-live="polite">Checking saved games...</div>
+            <button id="export-games" type="button" disabled>Export game archive</button>
+          </section>
           <div class="moves-heading">Moves</div>
           <ol id="moves" class="moves" aria-label="Move history"></ol>
-          <p class="hint">Drag a piece, or click it and its destination. Promotions default to a queen.</p>
+          <p class="hint">Drag a piece, or click it and its destination. Right-click and drag to draw an arrow. Completed games are saved in this browser and can be exported for later training.</p>
         </aside>
       </section>
       <footer class="footer">Runs locally in your browser with WebAssembly. No game server. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
