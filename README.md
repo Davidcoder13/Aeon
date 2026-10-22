@@ -1,4 +1,5 @@
 # Aeon in the browser
+https://davidcoder13.github.io/Aeon/  
 
 This is a static browser client. Aeon's move generation, NNUE evaluation, and search compile to WebAssembly and run in a dedicated Web Worker. No engine server or account is involved. The exported network is packaged with the build.
 
