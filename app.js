@@ -18,6 +18,7 @@ const lastMoveElement = document.querySelector("#move-label");
 const movesElement = document.querySelector("#moves");
 const colorSelect = document.querySelector("#human-color");
 const timeSelect = document.querySelector("#move-time");
+const difficultySelect = document.querySelector("#difficulty");
 const newGameButton = document.querySelector("#new-game");
 
 const board = new Chessboard(boardElement, {
@@ -79,7 +80,6 @@ function isHumanTurn() {
 }
 
 function renderBoardMarkers() {
-  // Safely get the markers extension instance at render time
   const markersExt = board.getExtension(Markers);
   if (!markersExt) return;
 
@@ -96,11 +96,9 @@ function renderBoardMarkers() {
       .filter((move) => move.slice(0, 2) === selectedSquare)
       .map((move) => ({ to: move.slice(2, 4), promotion: move[4] ?? null }));
     
-    // Fallback check to prevent crashes if the method name differs in the CDN bundle
     if (typeof markersExt.addLegalMovesMarkers === "function") {
       markersExt.addLegalMovesMarkers(targets);
     } else if (typeof markersExt.showLegalMoves === "function") {
-      // Some versions use showLegalMoves instead
       markersExt.showLegalMoves(targets);
     }
   }
@@ -120,6 +118,7 @@ function render() {
 
   gameOver = result !== "playing";
   boardElement.classList.toggle("locked", thinking || movePending || gameOver || side !== humanColor);
+  
   if (result === "checkmate") {
     messageElement.textContent = side === humanColor ? "Checkmate - Aeon wins." : "Checkmate - you win.";
   } else if (result === "stalemate") {
@@ -133,9 +132,12 @@ function render() {
   } else {
     messageElement.textContent = "Aeon to move.";
   }
+
   newGameButton.disabled = thinking || movePending || !ready;
   colorSelect.disabled = thinking || movePending || !ready;
   timeSelect.disabled = thinking || movePending || !ready;
+  if (difficultySelect) difficultySelect.disabled = thinking || movePending || !ready;
+  
   renderBoardMarkers();
 }
 
@@ -168,7 +170,8 @@ async function engineMove() {
   try {
     const move = await request("search", {
       moves: history.join(" "),
-      movetime: Number(timeSelect.value)
+      movetime: Number(timeSelect.value),
+      difficulty: difficultySelect ? difficultySelect.value : "hard"
     });
     if (move.startsWith("ERROR:")) throw new Error(move);
     if (move) {
@@ -196,7 +199,6 @@ function handleMoveInput(event) {
       move.slice(0, 2) === event.squareFrom && move.slice(2, 4) === event.squareTo);
     if (!candidates.length) return false;
 
-    // Keep the existing promotion behavior: automatically promote to a queen.
     const move = candidates.find((candidate) => candidate.endsWith("q")) ?? candidates[0];
     history.push(move);
     highlightedMove = move;
@@ -207,6 +209,7 @@ function handleMoveInput(event) {
     newGameButton.disabled = true;
     colorSelect.disabled = true;
     timeSelect.disabled = true;
+    if (difficultySelect) difficultySelect.disabled = true;
     boardElement.classList.add("locked");
     void refresh().catch(showError);
     return true;
@@ -237,6 +240,7 @@ function showError(error) {
   newGameButton.disabled = true;
   colorSelect.disabled = true;
   timeSelect.disabled = true;
+  if (difficultySelect) difficultySelect.disabled = true;
   boardElement.classList.add("locked");
 }
 
