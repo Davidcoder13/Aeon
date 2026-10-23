@@ -116,3 +116,109 @@ button.primary:disabled, select:disabled { opacity: .55; cursor: wait; }
   button.primary { transition: filter 120ms ease; }
   button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 }
+
+
+/* --- Game Analysis Modal & Badges --- */
+.analysis-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 20, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.analysis-modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.analysis-modal {
+  background: #182230;
+  border: 1px solid #2a3b52;
+  border-radius: 12px;
+  width: min(90vw, 750px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.analysis-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #2a3b52;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.analysis-header h2 { margin: 0; font-size: 1.25rem; color: #f0f4f8; }
+.analysis-close {
+  background: none; border: none; color: #8a9bb0; font-size: 1.5rem; cursor: pointer;
+}
+.analysis-close:hover { color: #f0f4f8; }
+.analysis-body { padding: 20px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+.analysis-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.player-stat-card {
+  background: #121820;
+  border: 1px solid #233142;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+.player-stat-card h3 { margin: 0 0 6px 0; font-size: 1rem; color: #cbd5e1; }
+.accuracy-badge { font-size: 1.8rem; font-weight: bold; color: #4ade80; margin-bottom: 8px; }
+.classification-counts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.eval-chart-container {
+  background: #121820;
+  border: 1px solid #233142;
+  border-radius: 8px;
+  padding: 12px;
+  height: 160px;
+  position: relative;
+}
+.eval-chart-svg { width: 100%; height: 100%; overflow: visible; }
+
+/* Move list badges */
+.move-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-left: 4px;
+}
+.badge-brilliant { background: #0891b2; color: #fff; }
+.badge-best { background: #16a34a; color: #fff; }
+.badge-good { background: #ca8a04; color: #fff; }
+.badge-inaccuracy { background: #d97706; color: #fff; }
+.badge-mistake { background: #dc2626; color: #fff; }
+.badge-blunder { background: #991b1b; color: #fff; }
+
+.review-trigger-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+  width: 100%;
+  transition: background 0.2s;
+}
+.review-trigger-btn:hover { background: #1d4ed8; }
