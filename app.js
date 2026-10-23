@@ -171,11 +171,15 @@ function createGameId() {
 async function refreshArchiveStatus() {
   try {
     const count = await withArchiveStore("readonly", (store) => store.count());
-    archiveStatusElement.textContent = `${count} completed ${count === 1 ? "game" : "games"} saved on this device`;
-    exportGamesButton.disabled = count === 0;
+    if (archiveStatusElement) {
+      archiveStatusElement.textContent = `${count} completed ${count === 1 ? "game" : "games"} saved on this device`;
+    }
+    if (exportGamesButton) exportGamesButton.disabled = count === 0;
   } catch {
-    archiveStatusElement.textContent = "Local game saving is unavailable in this browser";
-    exportGamesButton.disabled = true;
+    if (archiveStatusElement) {
+      archiveStatusElement.textContent = "Local game saving is unavailable in this browser";
+    }
+    if (exportGamesButton) exportGamesButton.disabled = true;
   }
 }
 
@@ -303,7 +307,9 @@ async function saveCompletedGame(resultCode) {
     savedGameIds.add(gameId);
     await refreshArchiveStatus();
   } catch (error) {
-    archiveStatusElement.textContent = `Could not save this game: ${error.message ?? error}`;
+    if (archiveStatusElement) {
+      archiveStatusElement.textContent = `Could not save this game: ${error.message ?? error}`;
+    }
   } finally {
     savingGameIds.delete(gameId);
   }
@@ -323,7 +329,9 @@ async function exportGameArchive() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (error) {
-    archiveStatusElement.textContent = `Could not export games: ${error.message}`;
+    if (archiveStatusElement) {
+      archiveStatusElement.textContent = `Could not export games: ${error.message}`;
+    }
   }
 }
 
@@ -644,7 +652,7 @@ function showError(error) {
 board.enableMoveInput(handleMoveInput);
 newGameButton.addEventListener("click", () => resetGame().catch(showError));
 colorSelect.addEventListener("change", () => resetGame().catch(showError));
-exportGamesButton.addEventListener("click", () => exportGameArchive());
+exportGamesButton?.addEventListener("click", () => exportGameArchive());
 difficultySelect?.addEventListener("change", () => {
   currentOpponentId = difficultySelect.value;
   publishGameContext();
