@@ -508,6 +508,11 @@ async function refresh(searchIfNeeded = true) {
   }
   if (gameOver) tauntDelivery?.gameOver();
   if (searchIfNeeded && !gameOver && side !== humanColor && !thinking) await engineMove();
+
+  if (gameOver) {
+    tauntDelivery?.gameOver();
+    void analyzeCompletedGame();
+  }
 }
 
 async function engineMove() {
