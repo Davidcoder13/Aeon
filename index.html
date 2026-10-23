@@ -70,16 +70,12 @@
           </label>
 
           <button id="new-game" class="primary" type="button" disabled>New game</button>
-          <section class="archive" aria-label="Game archive">
-            <div id="archive-status" aria-live="polite">Checking saved games...</div>
-            <button id="export-games" type="button" disabled>Export game archive</button>
-          </section>
           <div class="moves-heading">Moves</div>
           <ol id="moves" class="moves" aria-label="Move history"></ol>
           <p class="hint">Drag a piece, or click it and its destination. Right-click and drag to draw an arrow. Completed games are saved in this browser and can be exported for later training.</p>
         </aside>
       </section>
-      <footer class="footer">Runs locally in your browser with WebAssembly. No game server. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
+      <footer class="footer">Runs locally in your browser with WebAssembly. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
     </main>
     <script src="./aeon-taunt.js"></script>
     <script type="module" src="app.js"></script>
