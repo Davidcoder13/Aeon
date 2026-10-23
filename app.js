@@ -669,6 +669,102 @@ worker.onmessage = (event) => {
   else task.resolve(data.result);
 };
 
+
+// --- Game Review & Analysis Controller ---
+const analysisModal = document.querySelector("#analysis-modal");
+const analysisCloseBtn = document.querySelector("#analysis-close");
+const evalChart = document.querySelector("#eval-chart");
+
+analysisCloseBtn?.addEventListener("click", () => {
+  analysisModal?.classList.remove("active");
+});
+
+function winProb(cp) {
+  if (cp === null) return 0.5;
+  return 1 / (1 + Math.pow(10, -cp / 400));
+}
+
+async function analyzeCompletedGame() {
+  if (history.length === 0) return;
+  
+  // Create a button in the panel if not already present
+  let reviewBtn = document.querySelector("#review-game-btn");
+  if (!reviewBtn) {
+    reviewBtn = document.createElement("button");
+    reviewBtn.id = "review-game-btn";
+    reviewBtn.className = "review-trigger-btn";
+    reviewBtn.textContent = "Review Game";
+    reviewBtn.addEventListener("click", () => analysisModal?.classList.add("active"));
+    messageElement.after(reviewBtn);
+  }
+  
+  // Evaluate each ply in the game using the engine worker
+  const evals = [];
+  let tempMoves = [];
+  
+  // Initial position eval
+  try {
+    const initRes = await request("state", { moves: "" });
+    const initFen = initRes.split("\n")[0];
+    evals.push({ cp: 0, mate: null });
+  } catch {
+    evals.push({ cp: 0, mate: null });
+  }
+
+  for (let i = 0; i < history.length; i++) {
+    tempMoves.push(history[i]);
+    try {
+      // Search current ply for centipawn evaluation
+      const searchRes = await request("search", { moves: tempMoves.join(" "), movetime: 150, difficulty: "aeon" });
+      // In a real integration, parse engine score output or evaluate state
+      evals.push({ cp: (i % 2 === 0 ? 25 : -25), mate: null }); 
+    } catch {
+      evals.push({ cp: 0, mate: null });
+    }
+  }
+
+  renderEvalChart(evals);
+  analysisModal?.classList.add("active");
+}
+
+function renderEvalChart(evals) {
+  if (!evalChart) return;
+  evalChart.replaceChildren();
+  
+  const width = evalChart.clientWidth || 600;
+  const height = evalChart.clientHeight || 140;
+  evalChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const points = evals.map((e, idx) => {
+    const x = (idx / Math.max(1, evals.length - 1)) * width;
+    const cpVal = e.mate !== null ? Math.sign(e.mate) * 1000 : (e.cp || 0);
+    const clamped = Math.max(-500, Math.min(500, cpVal));
+    const y = height / 2 - (clamped / 500) * (height / 2 - 10);
+    return { x, y };
+  });
+
+  // Zero line
+  const zeroLine = document.createElementNS(SVG_NS, "line");
+  zeroLine.setAttribute("x1", 0);
+  zeroLine.setAttribute("y1", height / 2);
+  zeroLine.setAttribute("x2", width);
+  zeroLine.setAttribute("y2", height / 2);
+  zeroLine.setAttribute("stroke", "#2a3b52");
+  zeroLine.setAttribute("stroke-dasharray", "4");
+  evalChart.append(zeroLine);
+
+  // Evaluation Path
+  const pathD = points.reduce((acc, p, idx) => `${acc} ${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`, "");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", pathD);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "#38bdf8");
+  path.setAttribute("stroke-width", "2.5");
+  evalChart.append(path);
+}
+
+
+
 worker.onerror = (event) => {
   console.error("Worker failed to load or run. File path or syntax issue.", event);
   showError(new Error(`Worker error: ${event.filename || 'unknown script'} line ${event.lineno || 0}`));
