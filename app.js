@@ -30,246 +30,6 @@ const commentaryElement = document.querySelector("#model-commentary");
 const tauntLog = document.querySelector("#taunt-log");
 const tauntReplies = document.querySelector("#taunt-replies");
 
-// Controls & Actions Elements
-const evalBarElement = document.querySelector("#eval-bar");
-const evalFillElement = document.querySelector("#eval-fill");
-const evalScoreElement = document.querySelector("#eval-score");
-const btnFlip = document.querySelector("#btn-flip");
-const btnSound = document.querySelector("#btn-sound");
-const toggleEval = document.querySelector("#toggle-eval");
-const btnCopyFen = document.querySelector("#btn-copy-fen");
-const btnCopyPgn = document.querySelector("#btn-copy-pgn");
-const btnImportFen = document.querySelector("#btn-import-fen");
-const importModal = document.querySelector("#import-modal");
-const importFenInput = document.querySelector("#import-fen-input");
-const importError = document.querySelector("#import-error");
-const importCancelBtn = document.querySelector("#import-cancel-btn");
-
-// Web Audio Sound Controller
-class SoundController {
-  constructor() {
-    this.ctx = null;
-    this.muted = false;
-  }
-  init() {
-    if (!this.ctx && typeof AudioContext !== "undefined") {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (this.ctx && this.ctx.state === "suspended") {
-      void this.ctx.resume();
-    }
-  }
-  toggle() {
-    this.muted = !this.muted;
-    return !this.muted;
-  }
-  playMove() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(420, now);
-      osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.08);
-      if (navigator.vibrate) navigator.vibrate(15);
-    } catch {}
-  }
-  playCapture() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.12);
-      if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
-    } catch {}
-  }
-  playCheck() {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      [587.33, 880].forEach((freq, idx) => {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
-        gain.gain.setValueAtTime(0.2, now + idx * 0.09);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.16);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.09);
-        osc.stop(now + idx * 0.09 + 0.16);
-      });
-      if (navigator.vibrate) navigator.vibrate([35, 40, 35]);
-    } catch {}
-  }
-  playGameOver(won) {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const notes = won ? [523.25, 659.25, 783.99, 1046.50] : [440, 392, 349.23, 293.66];
-      notes.forEach((freq, idx) => {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
-        gain.gain.setValueAtTime(0.22, now + idx * 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.24);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.1);
-        osc.stop(now + idx * 0.1 + 0.24);
-      });
-    } catch {}
-  }
-}
-const soundCtrl = new SoundController();
-
-// Evaluation Position Evaluator (PST + Material)
-const PIECE_VALS = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
-const PST_PAWN = [
-  0,  0,  0,  0,  0,  0,  0,  0,
- 50, 50, 50, 50, 50, 50, 50, 50,
- 10, 10, 20, 30, 30, 20, 10, 10,
-  5,  5, 10, 25, 25, 10,  5,  5,
-  0,  0,  0, 20, 20,  0,  0,  0,
-  5, -5,-10,  0,  0,-10, -5,  5,
-  5, 10, 10,-20,-20, 10, 10,  5,
-  0,  0,  0,  0,  0,  0,  0,  0
-];
-const PST_KNIGHT = [
- -50,-40,-30,-30,-30,-30,-40,-50,
- -40,-20,  0,  0,  0,  0,-20,-40,
- -30,  0, 10, 15, 15, 10,  0,-30,
- -30,  5, 15, 20, 20, 15,  5,-30,
- -30,  0, 15, 20, 20, 15,  0,-30,
- -30,  5, 10, 15, 15, 10,  5,-30,
- -40,-20,  0,  5,  5,  0,-20,-40,
- -50,-40,-30,-30,-30,-30,-40,-50
-];
-const PST_BISHOP = [
- -20,-10,-10,-10,-10,-10,-10,-20,
- -10,  0,  0,  0,  0,  0,  0,-10,
- -10,  0,  5, 10, 10,  5,  0,-10,
- -10,  5,  5, 10, 10,  5,  5,-10,
- -10,  0, 10, 10, 10, 10,  0,-10,
- -10, 10, 10, 10, 10, 10, 10,-10,
- -10,  5,  0,  0,  0,  0,  5,-10,
- -20,-10,-10,-10,-10,-10,-10,-20
-];
-const PST_ROOK = [
-  0,  0,  0,  0,  0,  0,  0,  0,
-  5, 10, 10, 10, 10, 10, 10,  5,
- -5,  0,  0,  0,  0,  0,  0, -5,
- -5,  0,  0,  0,  0,  0,  0, -5,
- -5,  0,  0,  0,  0,  0,  0, -5,
- -5,  0,  0,  0,  0,  0,  0, -5,
- -5,  0,  0,  0,  0,  0,  0, -5,
-  0,  0,  0,  5,  5,  0,  0,  0
-];
-const PST_QUEEN = [
- -20,-10,-10, -5, -5,-10,-10,-20,
- -10,  0,  0,  0,  0,  0,  0,-10,
- -10,  0,  5,  5,  5,  5,  0,-10,
-  -5,  0,  5,  5,  5,  5,  0, -5,
-   0,  0,  5,  5,  5,  5,  0, -5,
- -10,  5,  5,  5,  5,  5,  0,-10,
- -10,  0,  5,  0,  0,  0,  0,-10,
- -20,-10,-10, -5, -5,-10,-10,-20
-];
-const PST_KING = [
- -30,-40,-40,-50,-50,-40,-40,-30,
- -30,-40,-40,-50,-50,-40,-40,-30,
- -30,-40,-40,-50,-50,-40,-40,-30,
- -30,-40,-40,-50,-50,-40,-40,-30,
- -20,-30,-30,-40,-40,-30,-30,-20,
- -10,-20,-20,-20,-20,-20,-20,-10,
-  20, 20,  0,  0,  0,  0, 20, 20,
-  20, 30, 10,  0,  0, 10, 30, 20
-];
-
-function evaluateFen(fen, status) {
-  if (status === "checkmate") {
-    const sideToMove = fen.split(" ")[1];
-    return sideToMove === "w" ? -10000 : 10000;
-  }
-  if (status === "stalemate" || status === "draw") return 0;
-
-  const rows = fen.split(" ")[0].split("/");
-  let score = 0;
-  for (let r = 0; r < 8; r++) {
-    let f = 0;
-    for (const ch of rows[r]) {
-      if (/\d/.test(ch)) {
-        f += Number(ch);
-      } else {
-        const isWhite = ch === ch.toUpperCase();
-        const type = ch.toLowerCase();
-        const baseVal = PIECE_VALS[type] || 0;
-        const squareIdx = isWhite ? (r * 8 + f) : ((7 - r) * 8 + f);
-        let pstVal = 0;
-        if (type === "p") pstVal = PST_PAWN[squareIdx];
-        else if (type === "n") pstVal = PST_KNIGHT[squareIdx];
-        else if (type === "b") pstVal = PST_BISHOP[squareIdx];
-        else if (type === "r") pstVal = PST_ROOK[squareIdx];
-        else if (type === "q") pstVal = PST_QUEEN[squareIdx];
-        else if (type === "k") pstVal = PST_KING[squareIdx];
-
-        const pieceTotal = baseVal + pstVal;
-        score += isWhite ? pieceTotal : -pieceTotal;
-        f++;
-      }
-    }
-  }
-  return score;
-}
-
-function updateEvalBar() {
-  if (!evalBarElement || !position) return;
-  const [fen, , status = "playing"] = position.split("\n");
-  const cp = evaluateFen(fen, status);
-
-  let whitePercent = 50;
-  let text = "0.0";
-  if (Math.abs(cp) >= 9000) {
-    const whiteWon = cp > 0;
-    whitePercent = whiteWon ? 100 : 0;
-    text = "#";
-  } else {
-    whitePercent = Math.max(5, Math.min(95, 50 + 50 * (2 / (1 + Math.exp(-0.0035 * cp)) - 1)));
-    const pawns = (Math.abs(cp) / 100).toFixed(1);
-    text = cp > 0 ? `+${pawns}` : cp < 0 ? `-${pawns}` : "0.0";
-  }
-
-  const fillHeight = boardOrientation === "w" ? whitePercent : (100 - whitePercent);
-  evalFillElement.style.height = `${fillHeight}%`;
-  evalScoreElement.textContent = text;
-  evalScoreElement.className = `eval-score ${cp >= 0 ? "white-favored" : "black-favored"}`;
-}
-
 const board = new Chessboard(boardElement, {
   position: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
   orientation: COLOR.white,
@@ -326,7 +86,6 @@ let legalMoves = [];
 let selectedSquare = null;
 let highlightedMove = "";
 let humanColor = "w";
-let boardOrientation = "w";
 let thinking = false;
 let movePending = false;
 let ready = false;
@@ -426,15 +185,15 @@ function squareAtPointer(event) {
       event.clientY < rect.top || event.clientY >= rect.bottom) return null;
   const column = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
   const row = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
-  const file = boardOrientation === "w" ? column : 7 - column;
-  const rank = boardOrientation === "w" ? 7 - row : row;
+  const file = humanColor === "w" ? column : 7 - column;
+  const rank = humanColor === "w" ? 7 - row : row;
   return `${String.fromCharCode(97 + file)}${rank + 1}`;
 }
 
 function squareCenter(square) {
   const file = square.charCodeAt(0) - 97;
   const rank = Number(square[1]) - 1;
-  return boardOrientation === "w"
+  return humanColor === "w"
     ? { x: file + 0.5, y: 7 - rank + 0.5 }
     : { x: 7 - file + 0.5, y: rank + 0.5 };
 }
@@ -446,8 +205,8 @@ function renderUserAnnotations() {
   for (const sq of highlightedSquares) {
     const file = sq.charCodeAt(0) - 97;
     const rank = Number(sq[1]) - 1;
-    const x = boardOrientation === "w" ? file : 7 - file;
-    const y = boardOrientation === "w" ? 7 - rank : rank;
+    const x = humanColor === "w" ? file : 7 - file;
+    const y = humanColor === "w" ? 7 - rank : rank;
     const rect = document.createElementNS(SVG_NS, "rect");
     rect.setAttribute("x", x);
     rect.setAttribute("y", y);
@@ -656,7 +415,7 @@ function render() {
   const opponentName = OPPONENTS[currentOpponentId]?.name ?? "Aeon";
 
   if (board.getPosition() !== placement) void board.setPosition(fen, true);
-  if (board.getOrientation() !== boardOrientation) void board.setOrientation(boardOrientation, true);
+  if (board.getOrientation() !== humanColor) void board.setOrientation(humanColor, true);
 
   turnElement.textContent = `${side === "w" ? "White" : "Black"} to move`;
   lastMoveElement.textContent = highlightedMove ? `Last: ${highlightedMove}` : "New game";
@@ -688,7 +447,6 @@ function render() {
   
   renderBoardMarkers();
   renderUserAnnotations();
-  updateEvalBar();
   publishGameContext();
 }
 
@@ -739,21 +497,6 @@ async function refresh(searchIfNeeded = true) {
   render();
 
   const side = fen.split(" ")[1];
-
-  // Sound effects based on move
-  if (pendingPly) {
-    const isHuman = pendingPly.by === "player";
-    const lastPlyInfo = plyData(pendingPly.beforePosition, pendingPly.move, pendingPly.by, position);
-    if (gameStatus === "checkmate") {
-      soundCtrl.playGameOver(isHuman);
-    } else if (lastPlyInfo.is_check) {
-      soundCtrl.playCheck();
-    } else if (lastPlyInfo.captured) {
-      soundCtrl.playCapture();
-    } else {
-      soundCtrl.playMove();
-    }
-  }
 
   if (pendingPly && gameOver) {
     const terminalScore = gameStatus === "checkmate"
@@ -857,7 +600,6 @@ function handleMoveInput(event) {
 async function resetGame() {
   if (thinking || movePending || !ready) return;
   humanColor = colorSelect.value;
-  boardOrientation = humanColor;
   currentOpponentId = difficultySelect?.value ?? "aeon";
   history = [];
   highlightedMove = "";
@@ -873,7 +615,7 @@ async function resetGame() {
   }
   if (tauntHistory) queueTaunt(tauntHistory.startEvent());
   selectedSquare = null;
-  await board.setOrientation(boardOrientation, true);
+  await board.setOrientation(humanColor, true);
   await request("new-game");
   await refresh();
 }
@@ -888,119 +630,6 @@ function showError(error) {
   if (difficultySelect) difficultySelect.disabled = true;
   boardElement.classList.add("locked");
 }
-
-function generatePgn() {
-  const [fen = ""] = (position ?? "").split("\n");
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
-  const whiteName = humanColor === "w" ? "Human" : (OPPONENTS[currentOpponentId]?.name ?? "Aeon");
-  const blackName = humanColor === "b" ? "Human" : (OPPONENTS[currentOpponentId]?.name ?? "Aeon");
-  let resultStr = "*";
-  if (gameOver) {
-    const [,, resCode = ""] = (position ?? "").split("\n");
-    if (resCode === "checkmate") {
-      const sideToMove = fen.split(" ")[1];
-      resultStr = sideToMove === "w" ? "0-1" : "1-0";
-    } else {
-      resultStr = "1/2-1/2";
-    }
-  }
-
-  let pgn = `[Event "Aeon Chess Match"]\n`;
-  pgn += `[Site "Aeon (Browser WebAssembly)"]\n`;
-  pgn += `[Date "${date}"]\n`;
-  pgn += `[Round "1"]\n`;
-  pgn += `[White "${whiteName}"]\n`;
-  pgn += `[Black "${blackName}"]\n`;
-  pgn += `[Result "${resultStr}"]\n\n`;
-
-  let moveText = "";
-  for (let i = 0; i < history.length; i++) {
-    if (i % 2 === 0) {
-      moveText += `${Math.floor(i / 2) + 1}. `;
-    }
-    moveText += `${history[i]} `;
-  }
-  pgn += (moveText.trim() ? moveText.trim() + " " : "") + resultStr;
-  return pgn;
-}
-
-function copyFeedback(btn, text) {
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = "Copied!";
-    btn.classList.add("copied");
-    setTimeout(() => {
-      btn.textContent = orig;
-      btn.classList.remove("copied");
-    }, 1500);
-  }).catch(() => {
-    prompt("Copy text:", text);
-  });
-}
-
-// Event Listeners
-btnFlip?.addEventListener("click", async () => {
-  boardOrientation = boardOrientation === "w" ? "b" : "w";
-  await board.setOrientation(boardOrientation, true);
-  renderBoardMarkers();
-  renderUserAnnotations();
-  updateEvalBar();
-});
-
-btnSound?.addEventListener("click", () => {
-  const active = soundCtrl.toggle();
-  btnSound.textContent = active ? "🔊 Sound" : "🔇 Muted";
-  btnSound.classList.toggle("active", active);
-});
-
-toggleEval?.addEventListener("change", () => {
-  evalBarElement.classList.toggle("hidden", !toggleEval.checked);
-});
-
-btnCopyFen?.addEventListener("click", () => {
-  if (!position) return;
-  const fen = position.split("\n")[0];
-  copyFeedback(btnCopyFen, fen);
-});
-
-btnCopyPgn?.addEventListener("click", () => {
-  copyFeedback(btnCopyPgn, generatePgn());
-});
-
-btnImportFen?.addEventListener("click", () => {
-  importError.textContent = "";
-  importFenInput.value = "";
-  importModal?.showModal();
-});
-
-importCancelBtn?.addEventListener("click", () => {
-  importModal?.close();
-});
-
-importModal?.querySelector("form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const raw = importFenInput.value.trim();
-  if (!raw) return;
-
-  const tokens = raw.split(/\s+/);
-  const isMoveList = tokens.every((t) => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(t));
-  
-  if (isMoveList) {
-    try {
-      history = tokens;
-      await refresh();
-      importModal.close();
-    } catch (err) {
-      importError.textContent = `Invalid move sequence: ${err.message}`;
-    }
-  } else {
-    if (raw.split("/").length >= 8) {
-      importError.textContent = "Loading custom FEN starting positions directly requires full board state. Use move sequences or click New Game.";
-    } else {
-      importError.textContent = "Please enter valid UCI moves (e.g. 'e2e4 e7e5 g1f3').";
-    }
-  }
-});
 
 board.enableMoveInput(handleMoveInput);
 newGameButton.addEventListener("click", () => resetGame().catch(showError));

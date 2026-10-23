@@ -27,58 +27,9 @@ h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
 
 .game-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 300px); gap: 22px; align-items: start; }
 .board-column { min-width: 0; }
-.board-wrapper {
-  display: flex;
-  gap: 10px;
-  align-items: stretch;
-  width: 100%;
-  max-width: 690px;
-}
-.eval-bar {
-  position: relative;
-  width: 22px;
-  min-width: 22px;
-  background: #1b242d;
-  border: 2px solid #26323a;
-  border-radius: 6px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  user-select: none;
-  transition: opacity 0.2s, width 0.2s;
-}
-.eval-bar.hidden { display: none; }
-.eval-fill {
-  width: 100%;
-  height: 50%;
-  background: var(--light-square);
-  transition: height 0.35s cubic-bezier(0.2, 0, 0, 1);
-}
-.eval-score {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  pointer-events: none;
-  z-index: 2;
-  white-space: nowrap;
-}
-.eval-score.white-favored {
-  bottom: 6px;
-  color: #172018;
-}
-.eval-score.black-favored {
-  top: 6px;
-  color: #f4f2ed;
-}
 
 .board {
   position: relative;
-  flex: 1;
   width: 100%;
   max-width: 660px;
   aspect-ratio: 1;
@@ -127,48 +78,11 @@ h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
 }
 
 .board-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 3px 0; color: var(--muted); font-size: 13px; }
-.board-footer-left { display: flex; gap: 12px; align-items: center; }
-.board-actions { display: flex; gap: 6px; }
-.action-btn {
-  padding: 5px 10px;
-  font-size: 12px;
-  color: var(--muted);
-  background: #18222a;
-  border: 1px solid #2e3a44;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: color 120ms, border-color 120ms, background 120ms;
-}
-.action-btn:hover { color: #f4f2ed; border-color: #4a5c6b; background: #222f3a; }
-.action-btn.active { color: var(--green); border-color: var(--green); }
 
 .panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--panel); border: 1px solid #2b3740; border-radius: 9px; }
 .message { min-height: 42px; display: flex; align-items: center; color: var(--green); font-weight: 650; }
 .model-commentary { padding: 10px 11px; color: #f2e6bd; background: #252b2c; border-left: 3px solid #d2ad46; border-radius: 4px; font-size: 13px; line-height: 1.45; }
 .model-commentary:empty { display: none; }
-
-.toggles-row {
-  display: flex;
-  gap: 16px;
-  padding: 8px 10px;
-  background: #151d24;
-  border: 1px solid #28343e;
-  border-radius: 6px;
-}
-.checkbox-control {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-  user-select: none;
-}
-.checkbox-control input {
-  accent-color: var(--green);
-  cursor: pointer;
-}
-.checkbox-control:hover { color: #f4f2ed; }
 
 .control { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
 .profile-note { margin: -7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -176,32 +90,6 @@ select, button { font: inherit; }
 select { width: 100%; padding: 10px 11px; color: #f4f2ed; background: #121a21; border: 1px solid #39464e; border-radius: 6px; }
 button.primary { padding: 11px; color: #172018; font-weight: 750; background: var(--green); border: 0; border-radius: 6px; cursor: pointer; }
 button.primary:disabled, select:disabled { opacity: .55; cursor: wait; }
-
-.pgn-fen-bar {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-.secondary-btn {
-  padding: 8px 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #e9e6de;
-  background: #232e36;
-  border: 1px solid #35434e;
-  border-radius: 5px;
-  cursor: pointer;
-  text-align: center;
-  transition: background 120ms, border-color 120ms;
-}
-.secondary-btn:hover {
-  background: #2f3c46;
-  border-color: #4a5c6b;
-}
-.secondary-btn.copied {
-  color: var(--green);
-  border-color: var(--green);
-}
 
 .moves-heading { margin-top: 3px; font-size: 13px; font-weight: 700; }
 .moves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; max-height: 220px; overflow: auto; margin: 0; padding-left: 24px; color: #e8e5dc; font-variant-numeric: tabular-nums; }
@@ -211,67 +99,11 @@ button.primary:disabled, select:disabled { opacity: .55; cursor: wait; }
 .footer { padding: 18px 2px 0; text-align: center; }
 .footer a { color: var(--green); }
 
-/* Import Dialog Modal */
-.import-modal {
-  border: 1px solid #3a4852;
-  border-radius: 8px;
-  background: #1b242d;
-  color: #f4f2ed;
-  padding: 0;
-  max-width: 480px;
-  width: 90%;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-}
-.import-modal::backdrop {
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(2px);
-}
-.import-modal-content {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.import-modal-content h3 { margin: 0; font-size: 18px; }
-.import-help { margin: 0; font-size: 12px; color: var(--muted); }
-.import-input {
-  width: 100%;
-  padding: 10px;
-  background: #121a21;
-  border: 1px solid #39464e;
-  border-radius: 6px;
-  color: #f4f2ed;
-  font-family: monospace;
-  font-size: 12px;
-}
-.import-error {
-  color: #f18d84;
-  font-size: 12px;
-  min-height: 16px;
-}
-.import-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-.primary-btn {
-  padding: 8px 14px;
-  background: var(--green);
-  color: #172018;
-  font-weight: 700;
-  border: 0;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
 @media (max-width: 720px) {
   .app { width: min(520px, 100% - 20px); padding-top: 16px; }
   .game-layout { grid-template-columns: 1fr; gap: 14px; }
-  .board-wrapper { max-width: 100%; }
-  .eval-bar { width: 16px; min-width: 16px; }
   .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; padding: 14px; }
-  .message, .taunt-chat, .model-commentary, .toggles-row, .pgn-fen-bar, .moves-heading, .moves, .hint { grid-column: 1 / -1; }
+  .message, .taunt-chat, .model-commentary, .moves-heading, .moves, .hint { grid-column: 1 / -1; }
   .message { min-height: 24px; }
   .moves { max-height: 140px; }
 }
