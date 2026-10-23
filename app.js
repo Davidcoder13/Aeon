@@ -1,4 +1,11 @@
 import {
+  parseFenEvaluation,
+  classifyMoveDelta,
+  calculateCapsAccuracy,
+  renderEvalChartSVG,
+  winProbability
+} from "./analyzer.js";
+import {
   BORDER_TYPE,
   Chessboard,
   COLOR,
@@ -747,10 +754,6 @@ async function analyzeCompletedGame() {
   if (!history.length || isAnalyzing) return;
   isAnalyzing = true;
 
-  const startTime = performance.now();
-  console.group("%c[Aeon Game Review]%c Starting Analysis...", LOG_STYLES.header, LOG_STYLES.subHeader);
-  console.log(`%cTotal moves in history:%c ${history.length} (${Math.ceil(history.length / 2)} full moves)`, LOG_STYLES.info, "color: #fff");
-
   let reviewBtn = document.querySelector("#review-game-btn");
   if (!reviewBtn) {
     reviewBtn = document.createElement("button");
@@ -762,7 +765,7 @@ async function analyzeCompletedGame() {
   }
 
   analysisModal?.classList.add("active");
-  
+
   const whiteAccuracyEl = document.querySelector("#white-accuracy");
   const blackAccuracyEl = document.querySelector("#black-accuracy");
   const whiteCountsEl = document.querySelector("#white-counts");
@@ -771,71 +774,30 @@ async function analyzeCompletedGame() {
   if (whiteAccuracyEl) whiteAccuracyEl.textContent = "Analyzing...";
   if (blackAccuracyEl) blackAccuracyEl.textContent = "Analyzing...";
 
-  const evals = [];
+  const evals = [{ eval_cp: 0, mate: null }];
   const whiteDeltas = [];
   const blackDeltas = [];
-  
   const whiteCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
   const blackCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
 
-  evals.push({ eval_cp: 20, mate: null });
-
-  console.groupCollapsed("%c[Engine Calculations]%c Evaluating positions per ply...", LOG_STYLES.subHeader, LOG_STYLES.info);
   const historyMoves = [];
-  
-  // Inside analyzeCompletedGame() loop:
   for (let i = 0; i < history.length; i++) {
-    const plyMove = history[i];
-    const isWhite = i % 2 === 0;
-    const moveNum = Math.floor(i / 2) + 1;
-    historyMoves.push(plyMove);
-
-    const plyStartTime = performance.now();
+    historyMoves.push(history[i]);
     try {
-      // 1. Run search to let engine process ply
-      await request("search", {
-        moves: historyMoves.join(" "),
-        movetime: 50,
-        difficulty: "aeon"
-      });
-
-      // 2. Get accurate state position FEN after the move
       const stateResponse = await request("state", { moves: historyMoves.join(" ") });
-      const parsedScore = parseEngineScore(stateResponse);
-      evals.push(parsedScore);
-
-      const elapsed = (performance.now() - plyStartTime).toFixed(1);
-      console.log(
-        `Ply ${i + 1} (${isWhite ? "White" : "Black"} ${moveNum}. ${plyMove}): %cEval: ${parsedScore.eval_cp} cp%c (${elapsed} ms)`,
-        "color: #38bdf8; font-weight: bold;",
-        LOG_STYLES.info
-      );
-    } catch (err) {
-      console.error(`%cPly ${i + 1} failed:%c`, "color: #f87171;", LOG_STYLES.info, err);
+      evals.push(parseFenEvaluation(stateResponse));
+    } catch {
       evals.push(evals[evals.length - 1] || { eval_cp: 0, mate: null });
     }
   }
-  console.groupEnd();
 
-  console.group("%c[Move Classifications]%c Move Quality Breakdown", LOG_STYLES.subHeader, LOG_STYLES.info);
   for (let i = 0; i < history.length; i++) {
     const isWhite = i % 2 === 0;
-    const moveStr = history[i];
-    const moveNum = Math.floor(i / 2) + 1;
-    
-    const winBefore = winProbability(evals[i]);
-    const winAfter = winProbability(evals[i + 1]);
+    const winBefore = winProbability(evals[i].eval_cp, evals[i].mate);
+    const winAfter = winProbability(evals[i + 1].eval_cp, evals[i + 1].mate);
     
     const delta = isWhite ? Math.max(0, winBefore - winAfter) : Math.max(0, winAfter - winBefore);
-    const classification = classifyMove(winBefore, winAfter, isWhite);
-
-    console.log(
-      `Move ${moveNum}${isWhite ? "." : "..."} %c${moveStr.padEnd(5)}%c | %c${classification.label.padEnd(10)}%c | Win Prob Delta: -${(delta * 100).toFixed(1)}%`,
-      isWhite ? LOG_STYLES.whiteMove : LOG_STYLES.blackMove,
-      "",
-      classification.style,
-      LOG_STYLES.info
-    );
+    const classification = classifyMoveDelta(winBefore, winAfter, isWhite);
 
     if (isWhite) {
       whiteDeltas.push(delta);
@@ -845,16 +807,9 @@ async function analyzeCompletedGame() {
       blackCounts[classification.label]++;
     }
   }
-  console.groupEnd();
 
-  const calcAccuracy = (deltas) => {
-    if (!deltas.length) return 100;
-    const avgLoss = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-    return Math.round(Math.max(0, 100 * Math.pow(1 - avgLoss, 0.85)));
-  };
-
-  const whiteAcc = calcAccuracy(whiteDeltas);
-  const blackAcc = calcAccuracy(blackDeltas);
+  const whiteAcc = calculateCapsAccuracy(whiteDeltas);
+  const blackAcc = calculateCapsAccuracy(blackDeltas);
 
   if (whiteAccuracyEl) whiteAccuracyEl.textContent = `${whiteAcc}%`;
   if (blackAccuracyEl) blackAccuracyEl.textContent = `${blackAcc}%`;
@@ -866,12 +821,7 @@ async function analyzeCompletedGame() {
     blackCountsEl.textContent = `${blackCounts.Best} / ${blackCounts.Good} / ${blackCounts.Inaccuracy} / ${blackCounts.Mistake} / ${blackCounts.Blunder}`;
   }
 
-  renderEvalChart(evals);
-
-  const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
-  console.log(`%c[Analysis Complete]%c White: ${whiteAcc}% Accuracy | Black: ${blackAcc}% Accuracy (${totalTime}s)`, LOG_STYLES.success, "color: #fff");
-  console.groupEnd();
-  
+  renderEvalChartSVG(evalChart, evals);
   isAnalyzing = false;
 }
 
