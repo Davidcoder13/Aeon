@@ -457,10 +457,21 @@
     }
 
     async _type(el, text) {
-      if (!this.typing || this.reduced) { el.textContent = text; return; }
+      if (!this.typing || this.reduced) {
+        el.textContent = text;
+        this.log.scrollTop = this.log.scrollHeight;
+        return;
+      }
       const per = Math.min(40, this.maxTypeMs / Math.max(1, text.length));
       el.textContent = "";
-      for (let i = 1; i <= text.length; i++) { el.textContent = text.slice(0, i); await this._sleep(per); }
+      for (let i = 1; i <= text.length; i++) {
+        el.textContent = text.slice(0, i);
+        if (i % 6 === 0 || i === text.length) {
+          this.log.scrollTop = this.log.scrollHeight;
+        }
+        await this._sleep(per);
+      }
+      this.log.scrollTop = this.log.scrollHeight;
     }
 
     _append(who, text) {
