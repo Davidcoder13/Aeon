@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#121820">
     <title>Aeon Chess</title>
 
-    <!-- Optional CSP tag - MUST permit cdn.jsdelivr.net for scripts/connect/styles -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net;">
+    <!-- CSP tag - all dependencies are served locally -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/chessboard.css"/>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/extensions/markers/markers.css"/>
+    <link rel="stylesheet" href="./vendor/cm-chessboard/assets/chessboard.css"/>
+    <link rel="stylesheet" href="./vendor/cm-chessboard/assets/extensions/markers/markers.css"/>
     <link rel="stylesheet" href="taunt.css">
     <link rel="stylesheet" href="style.css">
   </head>
@@ -26,10 +26,22 @@
 
       <section class="game-layout" aria-label="Chess game">
         <div class="board-column">
-          <div id="board" class="board" aria-label="Chess board"></div>
+          <div class="board-wrapper">
+            <div id="eval-bar" class="eval-bar" title="Position Evaluation" aria-label="Evaluation bar">
+              <div id="eval-fill" class="eval-fill"></div>
+              <span id="eval-score" class="eval-score">0.0</span>
+            </div>
+            <div id="board" class="board" aria-label="Chess board"></div>
+          </div>
           <div class="board-footer">
-            <span id="turn-label">White to move</span>
-            <span id="move-label">New game</span>
+            <div class="board-footer-left">
+              <span id="turn-label">White to move</span>
+              <span id="move-label">New game</span>
+            </div>
+            <div class="board-actions">
+              <button id="btn-flip" class="action-btn" type="button" title="Flip board perspective">🔄 Flip</button>
+              <button id="btn-sound" class="action-btn" type="button" title="Toggle sound effects">🔊 Sound</button>
+            </div>
           </div>
         </div>
 
@@ -40,6 +52,13 @@
             <div id="taunt-replies" class="taunt-replies" aria-label="Quick replies"></div>
           </section>
           <div id="model-commentary" class="model-commentary" aria-live="polite"></div>
+
+          <div class="toggles-row">
+            <label class="checkbox-control">
+              <input type="checkbox" id="toggle-eval" checked>
+              <span>Eval Bar</span>
+            </label>
+          </div>
 
           <label class="control">
             <span>You play</span>
@@ -52,12 +71,12 @@
           <label class="control">
             <span>Opponent</span>
             <select id="difficulty" disabled>
-              <option value="mark">Mark</option>
-              <option value="aeon" selected>Clance</option>
-              <option value="desperado">Desperado</option>
+              <option value="mark">Mark (Casual)</option>
+              <option value="aeon" selected>Aeon (Analytical)</option>
+              <option value="desperado">Desperado (Aggressive)</option>
             </select>
           </label>
-          <p class="profile-note">All profiles currently use the same Aeon model; search time sets relative strength. Choose before the first move.</p>
+          <p class="profile-note">Opponents feature unique personalities, commentary, and search depth.</p>
 
           <label class="control">
             <span>Time per move</span>
@@ -70,11 +89,31 @@
           </label>
 
           <button id="new-game" class="primary" type="button" disabled>New game</button>
+
+          <div class="pgn-fen-bar">
+            <button id="btn-copy-fen" class="secondary-btn" type="button" title="Copy current position as FEN">Copy FEN</button>
+            <button id="btn-copy-pgn" class="secondary-btn" type="button" title="Copy game as PGN">Copy PGN</button>
+            <button id="btn-import-fen" class="secondary-btn" type="button" title="Import custom FEN position">Import FEN</button>
+          </div>
+
           <div class="moves-heading">Moves</div>
           <ol id="moves" class="moves" aria-label="Move history"></ol>
-          <p class="hint">Drag a piece, or click it and its destination. Right-click and drag to draw an arrow. Completed games are saved in this browser and can be exported for later training.</p>
+          <p class="hint">Drag a piece, or click source and destination. Right-click to highlight a square or drag to draw an arrow. Left-click board to clear annotations.</p>
         </aside>
       </section>
+
+      <dialog id="import-modal" class="import-modal">
+        <form method="dialog" class="import-modal-content">
+          <h3>Import Position (FEN)</h3>
+          <p class="import-help">Paste a valid FEN string below to set up the board position:</p>
+          <input type="text" id="import-fen-input" class="import-input" placeholder="e.g. rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" spellcheck="false">
+          <div id="import-error" class="import-error"></div>
+          <div class="import-modal-actions">
+            <button type="button" id="import-cancel-btn" class="secondary-btn">Cancel</button>
+            <button type="submit" id="import-submit-btn" class="primary-btn">Load Position</button>
+          </div>
+        </form>
+      </dialog>
       <footer class="footer">Runs locally in your browser with WebAssembly. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
     </main>
     <script src="./aeon-taunt.js"></script>

@@ -3,14 +3,19 @@ import {
   Chessboard,
   COLOR,
   INPUT_EVENT_TYPE
-} from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/Chessboard.js";
+} from "./vendor/cm-chessboard/src/Chessboard.js";
 import {
   Markers,
   MARKER_TYPE
-} from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/markers/Markers.js";
-import { Accessibility } from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/accessibility/Accessibility.js";
+} from "./vendor/cm-chessboard/src/extensions/markers/Markers.js";
+import { Accessibility } from "./vendor/cm-chessboard/src/extensions/accessibility/Accessibility.js";
+import {
+  PromotionDialog,
+  PROMOTION_DIALOG_RESULT_TYPE
+} from "./vendor/cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js";
 import { TauntModelClient } from "./taunt-model-client.js";
 
+// DOM Elements
 const boardElement = document.querySelector("#board");
 const messageElement = document.querySelector("#message");
 const statusElement = document.querySelector("#engine-status");
@@ -24,13 +29,251 @@ const newGameButton = document.querySelector("#new-game");
 const commentaryElement = document.querySelector("#model-commentary");
 const tauntLog = document.querySelector("#taunt-log");
 const tauntReplies = document.querySelector("#taunt-replies");
-const archiveStatusElement = document.querySelector("#archive-status");
-const exportGamesButton = document.querySelector("#export-games");
+
+// Controls & Actions Elements
+const evalBarElement = document.querySelector("#eval-bar");
+const evalFillElement = document.querySelector("#eval-fill");
+const evalScoreElement = document.querySelector("#eval-score");
+const btnFlip = document.querySelector("#btn-flip");
+const btnSound = document.querySelector("#btn-sound");
+const toggleEval = document.querySelector("#toggle-eval");
+const btnCopyFen = document.querySelector("#btn-copy-fen");
+const btnCopyPgn = document.querySelector("#btn-copy-pgn");
+const btnImportFen = document.querySelector("#btn-import-fen");
+const importModal = document.querySelector("#import-modal");
+const importFenInput = document.querySelector("#import-fen-input");
+const importError = document.querySelector("#import-error");
+const importCancelBtn = document.querySelector("#import-cancel-btn");
+
+// Web Audio Sound Controller
+class SoundController {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+  }
+  init() {
+    if (!this.ctx && typeof AudioContext !== "undefined") {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      void this.ctx.resume();
+    }
+  }
+  toggle() {
+    this.muted = !this.muted;
+    return !this.muted;
+  }
+  playMove() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+      if (navigator.vibrate) navigator.vibrate(15);
+    } catch {}
+  }
+  playCapture() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+      if (navigator.vibrate) navigator.vibrate([25, 30, 25]);
+    } catch {}
+  }
+  playCheck() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      [587.33, 880].forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+        gain.gain.setValueAtTime(0.2, now + idx * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.16);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.16);
+      });
+      if (navigator.vibrate) navigator.vibrate([35, 40, 35]);
+    } catch {}
+  }
+  playGameOver(won) {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const notes = won ? [523.25, 659.25, 783.99, 1046.50] : [440, 392, 349.23, 293.66];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+        gain.gain.setValueAtTime(0.22, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.24);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.24);
+      });
+    } catch {}
+  }
+}
+const soundCtrl = new SoundController();
+
+// Evaluation Position Evaluator (PST + Material)
+const PIECE_VALS = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const PST_PAWN = [
+  0,  0,  0,  0,  0,  0,  0,  0,
+ 50, 50, 50, 50, 50, 50, 50, 50,
+ 10, 10, 20, 30, 30, 20, 10, 10,
+  5,  5, 10, 25, 25, 10,  5,  5,
+  0,  0,  0, 20, 20,  0,  0,  0,
+  5, -5,-10,  0,  0,-10, -5,  5,
+  5, 10, 10,-20,-20, 10, 10,  5,
+  0,  0,  0,  0,  0,  0,  0,  0
+];
+const PST_KNIGHT = [
+ -50,-40,-30,-30,-30,-30,-40,-50,
+ -40,-20,  0,  0,  0,  0,-20,-40,
+ -30,  0, 10, 15, 15, 10,  0,-30,
+ -30,  5, 15, 20, 20, 15,  5,-30,
+ -30,  0, 15, 20, 20, 15,  0,-30,
+ -30,  5, 10, 15, 15, 10,  5,-30,
+ -40,-20,  0,  5,  5,  0,-20,-40,
+ -50,-40,-30,-30,-30,-30,-40,-50
+];
+const PST_BISHOP = [
+ -20,-10,-10,-10,-10,-10,-10,-20,
+ -10,  0,  0,  0,  0,  0,  0,-10,
+ -10,  0,  5, 10, 10,  5,  0,-10,
+ -10,  5,  5, 10, 10,  5,  5,-10,
+ -10,  0, 10, 10, 10, 10,  0,-10,
+ -10, 10, 10, 10, 10, 10, 10,-10,
+ -10,  5,  0,  0,  0,  0,  5,-10,
+ -20,-10,-10,-10,-10,-10,-10,-20
+];
+const PST_ROOK = [
+  0,  0,  0,  0,  0,  0,  0,  0,
+  5, 10, 10, 10, 10, 10, 10,  5,
+ -5,  0,  0,  0,  0,  0,  0, -5,
+ -5,  0,  0,  0,  0,  0,  0, -5,
+ -5,  0,  0,  0,  0,  0,  0, -5,
+ -5,  0,  0,  0,  0,  0,  0, -5,
+ -5,  0,  0,  0,  0,  0,  0, -5,
+  0,  0,  0,  5,  5,  0,  0,  0
+];
+const PST_QUEEN = [
+ -20,-10,-10, -5, -5,-10,-10,-20,
+ -10,  0,  0,  0,  0,  0,  0,-10,
+ -10,  0,  5,  5,  5,  5,  0,-10,
+  -5,  0,  5,  5,  5,  5,  0, -5,
+   0,  0,  5,  5,  5,  5,  0, -5,
+ -10,  5,  5,  5,  5,  5,  0,-10,
+ -10,  0,  5,  0,  0,  0,  0,-10,
+ -20,-10,-10, -5, -5,-10,-10,-20
+];
+const PST_KING = [
+ -30,-40,-40,-50,-50,-40,-40,-30,
+ -30,-40,-40,-50,-50,-40,-40,-30,
+ -30,-40,-40,-50,-50,-40,-40,-30,
+ -30,-40,-40,-50,-50,-40,-40,-30,
+ -20,-30,-30,-40,-40,-30,-30,-20,
+ -10,-20,-20,-20,-20,-20,-20,-10,
+  20, 20,  0,  0,  0,  0, 20, 20,
+  20, 30, 10,  0,  0, 10, 30, 20
+];
+
+function evaluateFen(fen, status) {
+  if (status === "checkmate") {
+    const sideToMove = fen.split(" ")[1];
+    return sideToMove === "w" ? -10000 : 10000;
+  }
+  if (status === "stalemate" || status === "draw") return 0;
+
+  const rows = fen.split(" ")[0].split("/");
+  let score = 0;
+  for (let r = 0; r < 8; r++) {
+    let f = 0;
+    for (const ch of rows[r]) {
+      if (/\d/.test(ch)) {
+        f += Number(ch);
+      } else {
+        const isWhite = ch === ch.toUpperCase();
+        const type = ch.toLowerCase();
+        const baseVal = PIECE_VALS[type] || 0;
+        const squareIdx = isWhite ? (r * 8 + f) : ((7 - r) * 8 + f);
+        let pstVal = 0;
+        if (type === "p") pstVal = PST_PAWN[squareIdx];
+        else if (type === "n") pstVal = PST_KNIGHT[squareIdx];
+        else if (type === "b") pstVal = PST_BISHOP[squareIdx];
+        else if (type === "r") pstVal = PST_ROOK[squareIdx];
+        else if (type === "q") pstVal = PST_QUEEN[squareIdx];
+        else if (type === "k") pstVal = PST_KING[squareIdx];
+
+        const pieceTotal = baseVal + pstVal;
+        score += isWhite ? pieceTotal : -pieceTotal;
+        f++;
+      }
+    }
+  }
+  return score;
+}
+
+function updateEvalBar() {
+  if (!evalBarElement || !position) return;
+  const [fen, , status = "playing"] = position.split("\n");
+  const cp = evaluateFen(fen, status);
+
+  let whitePercent = 50;
+  let text = "0.0";
+  if (Math.abs(cp) >= 9000) {
+    const whiteWon = cp > 0;
+    whitePercent = whiteWon ? 100 : 0;
+    text = "#";
+  } else {
+    whitePercent = Math.max(5, Math.min(95, 50 + 50 * (2 / (1 + Math.exp(-0.0035 * cp)) - 1)));
+    const pawns = (Math.abs(cp) / 100).toFixed(1);
+    text = cp > 0 ? `+${pawns}` : cp < 0 ? `-${pawns}` : "0.0";
+  }
+
+  const fillHeight = boardOrientation === "w" ? whitePercent : (100 - whitePercent);
+  evalFillElement.style.height = `${fillHeight}%`;
+  evalScoreElement.textContent = text;
+  evalScoreElement.className = `eval-score ${cp >= 0 ? "white-favored" : "black-favored"}`;
+}
 
 const board = new Chessboard(boardElement, {
   position: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
   orientation: COLOR.white,
-  assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/",
+  assetsUrl: "./vendor/cm-chessboard/assets/",
   style: {
     cssClass: "aeon",
     borderType: BORDER_TYPE.none,
@@ -41,7 +284,8 @@ const board = new Chessboard(boardElement, {
   },
   extensions: [
     { class: Markers, props: { autoMarkers: null } },
-    { class: Accessibility, props: { keyboardMoveInput: true, visuallyHidden: true } }
+    { class: Accessibility, props: { keyboardMoveInput: true, visuallyHidden: true } },
+    { class: PromotionDialog }
   ]
 });
 
@@ -82,25 +326,23 @@ let legalMoves = [];
 let selectedSquare = null;
 let highlightedMove = "";
 let humanColor = "w";
+let boardOrientation = "w";
 let thinking = false;
 let movePending = false;
 let ready = false;
 let gameOver = false;
 let arrows = [];
+let highlightedSquares = new Set();
 let arrowStart = null;
-let currentGameId = createGameId();
-const savedGameIds = new Set();
-const savingGameIds = new Set();
-let gameStartedAt = new Date().toISOString();
 let currentOpponentId = difficultySelect?.value ?? "aeon";
+const positionCounts = new Map();
 
 const OPPONENTS = {
   mark: { name: "Mark", description: "casual" },
-  aeon: { name: "Aeon", description: "standard" },
-  desperado: { name: "Desperado", description: "deep search" }
+  aeon: { name: "Aeon", description: "analytical" },
+  desperado: { name: "Desperado", description: "aggressive" }
 };
 
-const archiveDatabase = openArchiveDatabase();
 let tauntHistory = null;
 let tauntDelivery = null;
 let tauntModel = null;
@@ -123,6 +365,8 @@ const tauntsReady = (async () => {
       log: tauntLog,
       replies: tauntReplies,
       lines: pools,
+      opponent: currentOpponentId,
+      onRematch: () => resetGame().catch(showError),
       getLine: (eventString) => tauntModel?.getLine(eventString) ?? null
     });
   } catch (error) {
@@ -133,54 +377,6 @@ const tauntsReady = (async () => {
 function setStatus(text, kind = "") {
   statusElement.textContent = text;
   statusElement.className = `engine-status ${kind}`.trim();
-}
-
-function openArchiveDatabase() {
-  if (!window.indexedDB) return Promise.reject(new Error("IndexedDB is unavailable"));
-  return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open("aeon-local-games", 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains("games")) {
-        const store = db.createObjectStore("games", { keyPath: "id" });
-        store.createIndex("completedAt", "completedAt");
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Could not open local game archive"));
-  });
-}
-
-function withArchiveStore(mode, action) {
-  return archiveDatabase.then((db) => new Promise((resolve, reject) => {
-    const transaction = db.transaction("games", mode);
-    const request = action(transaction.objectStore("games"));
-    let result;
-    request.onsuccess = () => { result = request.result; };
-    request.onerror = () => reject(request.error ?? new Error("Game archive request failed"));
-    transaction.oncomplete = () => resolve(result);
-    transaction.onerror = () => reject(transaction.error ?? new Error("Game archive transaction failed"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("Game archive transaction aborted"));
-  }));
-}
-
-function createGameId() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function refreshArchiveStatus() {
-  try {
-    const count = await withArchiveStore("readonly", (store) => store.count());
-    if (archiveStatusElement) {
-      archiveStatusElement.textContent = `${count} completed ${count === 1 ? "game" : "games"} saved on this device`;
-    }
-    if (exportGamesButton) exportGamesButton.disabled = count === 0;
-  } catch {
-    if (archiveStatusElement) {
-      archiveStatusElement.textContent = "Local game saving is unavailable in this browser";
-    }
-    if (exportGamesButton) exportGamesButton.disabled = true;
-  }
 }
 
 function getGameContext() {
@@ -230,21 +426,39 @@ function squareAtPointer(event) {
       event.clientY < rect.top || event.clientY >= rect.bottom) return null;
   const column = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
   const row = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
-  const file = humanColor === "w" ? column : 7 - column;
-  const rank = humanColor === "w" ? 7 - row : row;
+  const file = boardOrientation === "w" ? column : 7 - column;
+  const rank = boardOrientation === "w" ? 7 - row : row;
   return `${String.fromCharCode(97 + file)}${rank + 1}`;
 }
 
 function squareCenter(square) {
   const file = square.charCodeAt(0) - 97;
   const rank = Number(square[1]) - 1;
-  return humanColor === "w"
+  return boardOrientation === "w"
     ? { x: file + 0.5, y: 7 - rank + 0.5 }
     : { x: 7 - file + 0.5, y: rank + 0.5 };
 }
 
-function renderUserArrows() {
-  arrowOverlay.querySelectorAll("line").forEach((line) => line.remove());
+function renderUserAnnotations() {
+  arrowOverlay.querySelectorAll("line, rect").forEach((el) => el.remove());
+
+  // Render square highlights
+  for (const sq of highlightedSquares) {
+    const file = sq.charCodeAt(0) - 97;
+    const rank = Number(sq[1]) - 1;
+    const x = boardOrientation === "w" ? file : 7 - file;
+    const y = boardOrientation === "w" ? 7 - rank : rank;
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", "1");
+    rect.setAttribute("height", "1");
+    rect.setAttribute("fill", "#f2cc4d");
+    rect.setAttribute("opacity", "0.38");
+    arrowOverlay.append(rect);
+  }
+
+  // Render arrows
   for (const arrow of arrows) {
     const from = squareCenter(arrow.from);
     const to = squareCenter(arrow.to);
@@ -260,80 +474,39 @@ function renderUserArrows() {
 
 boardElement.addEventListener("contextmenu", (event) => event.preventDefault());
 boardElement.addEventListener("pointerdown", (event) => {
+  if (event.button === 0) {
+    // Left-click clears arrows and square highlights if clicked outside active move start
+    if (arrows.length > 0 || highlightedSquares.size > 0) {
+      arrows = [];
+      highlightedSquares.clear();
+      renderUserAnnotations();
+    }
+  }
   if (event.button !== 2) return;
   event.preventDefault();
   event.stopPropagation();
   arrowStart = squareAtPointer(event);
   if (arrowStart) boardElement.setPointerCapture?.(event.pointerId);
 }, true);
+
 window.addEventListener("pointerup", (event) => {
   if (!arrowStart) return;
   const from = arrowStart;
   const to = squareAtPointer(event);
   arrowStart = null;
-  if (!to || from === to) return;
+  if (!to) return;
+  if (from === to) {
+    // Right-click single square: toggle square highlight
+    if (highlightedSquares.has(from)) highlightedSquares.delete(from);
+    else highlightedSquares.add(from);
+    renderUserAnnotations();
+    return;
+  }
   const existing = arrows.findIndex((arrow) => arrow.from === from && arrow.to === to);
   if (existing >= 0) arrows.splice(existing, 1);
   else arrows.push({ from, to });
-  renderUserArrows();
+  renderUserAnnotations();
 });
-
-async function saveCompletedGame(resultCode) {
-  const gameId = currentGameId;
-  if (savedGameIds.has(gameId) || savingGameIds.has(gameId)) return;
-  savingGameIds.add(gameId);
-
-  const fen = position.split("\n")[0];
-  const sideToMove = fen.split(" ")[1];
-  let result = "1/2-1/2";
-  if (resultCode === "checkmate") {
-    const humanWon = sideToMove !== humanColor;
-    result = humanWon ? (humanColor === "w" ? "1-0" : "0-1") : (humanColor === "w" ? "0-1" : "1-0");
-  }
-  const record = {
-    id: gameId,
-    schema: "aeon-game-v1",
-    startedAt: gameStartedAt,
-    completedAt: new Date().toISOString(),
-    opponent: OPPONENTS[currentOpponentId]?.name ?? "Aeon",
-    model: "aeon-default",
-    humanColor,
-    result,
-    finalFen: fen,
-    movesUci: [...history]
-  };
-  try {
-    await withArchiveStore("readwrite", (store) => store.add(record));
-    savedGameIds.add(gameId);
-    await refreshArchiveStatus();
-  } catch (error) {
-    if (archiveStatusElement) {
-      archiveStatusElement.textContent = `Could not save this game: ${error.message ?? error}`;
-    }
-  } finally {
-    savingGameIds.delete(gameId);
-  }
-}
-
-async function exportGameArchive() {
-  try {
-    const games = await withArchiveStore("readonly", (store) => store.getAll());
-    games.sort((a, b) => a.completedAt.localeCompare(b.completedAt));
-    const blob = new Blob([JSON.stringify({ schema: "aeon-training-archive-v1", games }, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `aeon-games-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (error) {
-    if (archiveStatusElement) {
-      archiveStatusElement.textContent = `Could not export games: ${error.message}`;
-    }
-  }
-}
 
 function request(action, values = {}) {
   if (!worker) return Promise.reject(new Error("Engine worker is unavailable"));
@@ -436,7 +609,7 @@ function plyData(beforePosition, move, by, afterPosition, score = { eval_cp: 0, 
     fork: isKnightFork(afterBoard, to, moverColor),
     is_check: check === "check",
     is_checkmate: result === "checkmate",
-    is_draw: result === "stalemate",
+    is_draw: result === "stalemate" || result === "draw",
     non_pawn: nonPawn,
     fullmove: Number(afterFen.split(" ")[5]) || 1,
     ...score,
@@ -483,7 +656,7 @@ function render() {
   const opponentName = OPPONENTS[currentOpponentId]?.name ?? "Aeon";
 
   if (board.getPosition() !== placement) void board.setPosition(fen, true);
-  if (board.getOrientation() !== humanColor) void board.setOrientation(humanColor, true);
+  if (board.getOrientation() !== boardOrientation) void board.setOrientation(boardOrientation, true);
 
   turnElement.textContent = `${side === "w" ? "White" : "Black"} to move`;
   lastMoveElement.textContent = highlightedMove ? `Last: ${highlightedMove}` : "New game";
@@ -496,6 +669,8 @@ function render() {
     messageElement.textContent = side === humanColor ? `Checkmate - ${opponentName} wins.` : "Checkmate - you win.";
   } else if (result === "stalemate") {
     messageElement.textContent = "Stalemate.";
+  } else if (result === "draw") {
+    messageElement.textContent = "Draw.";
   } else if (thinking) {
     messageElement.textContent = `${opponentName} is thinking...`;
   } else if (movePending) {
@@ -506,17 +681,14 @@ function render() {
     messageElement.textContent = `${opponentName} to move.`;
   }
 
-  if (gameOver && (result === "checkmate" || result === "stalemate")) {
-    void saveCompletedGame(result);
-  }
-
   newGameButton.disabled = thinking || movePending || !ready;
   colorSelect.disabled = thinking || movePending || !ready;
   timeSelect.disabled = thinking || movePending || !ready;
   if (difficultySelect) difficultySelect.disabled = thinking || movePending || !ready || history.length > 0;
   
   renderBoardMarkers();
-  renderUserArrows();
+  renderUserAnnotations();
+  updateEvalBar();
   publishGameContext();
 }
 
@@ -530,19 +702,61 @@ function renderMoveList() {
   movesElement.scrollTop = movesElement.scrollHeight;
 }
 
+function getRepetitionKey(fen) {
+  const parts = fen.split(" ");
+  return `${parts[0]} ${parts[1]} ${parts[2]} ${parts[3]}`;
+}
+
 async function refresh(searchIfNeeded = true) {
   const result = await request("state", { moves: history.join(" ") });
   if (result.startsWith("ERROR:")) throw new Error(result);
-  position = result;
+  
   const parts = result.split("\n");
+  const fen = parts[0];
   legalMoves = parts[1] ? parts[1].split(" ") : [];
+  let gameStatus = parts[2] || "playing";
+
+  // Check Threefold Repetition & 50-Move Rule
+  if (gameStatus === "playing") {
+    const repKey = getRepetitionKey(fen);
+    const count = (positionCounts.get(repKey) || 0) + 1;
+    positionCounts.set(repKey, count);
+    const halfmove = parseInt(fen.split(" ")[4] || "0", 10);
+    if (count >= 3) {
+      gameStatus = "draw";
+      parts[2] = "draw";
+      messageElement.textContent = "Draw by threefold repetition.";
+    } else if (halfmove >= 100) {
+      gameStatus = "draw";
+      parts[2] = "draw";
+      messageElement.textContent = "Draw by 50-move rule.";
+    }
+  }
+
+  position = parts.join("\n");
   selectedSquare = null;
   movePending = false;
   render();
-  const side = parts[0].split(" ")[1];
+
+  const side = fen.split(" ")[1];
+
+  // Sound effects based on move
+  if (pendingPly) {
+    const isHuman = pendingPly.by === "player";
+    const lastPlyInfo = plyData(pendingPly.beforePosition, pendingPly.move, pendingPly.by, position);
+    if (gameStatus === "checkmate") {
+      soundCtrl.playGameOver(isHuman);
+    } else if (lastPlyInfo.is_check) {
+      soundCtrl.playCheck();
+    } else if (lastPlyInfo.captured) {
+      soundCtrl.playCapture();
+    } else {
+      soundCtrl.playMove();
+    }
+  }
 
   if (pendingPly && gameOver) {
-    const terminalScore = parts[2] === "checkmate"
+    const terminalScore = gameStatus === "checkmate"
       ? { eval_cp: null, mate: pendingPly.by === "player" ? -1 : 1 }
       : { eval_cp: 0, mate: null };
     const event = tauntHistory?.push(plyData(pendingPly.beforePosition, pendingPly.move, pendingPly.by, position, terminalScore));
@@ -568,7 +782,9 @@ async function engineMove() {
       history.push(move);
       highlightedMove = move;
       arrows = [];
+      highlightedSquares.clear();
       movePending = true;
+      pendingPly = { by: "bot", move, beforePosition };
       await refresh(false);
       const event = tauntHistory?.push(plyData(beforePosition, move, "bot", position, scoreFields("0")));
       queueTaunt(event);
@@ -577,6 +793,24 @@ async function engineMove() {
   } finally {
     thinking = false;
   }
+}
+
+function applyPlayerMove(move) {
+  pendingPly = { by: "player", move, beforePosition: position };
+  history.push(move);
+  highlightedMove = move;
+  arrows = [];
+  highlightedSquares.clear();
+  selectedSquare = null;
+  movePending = true;
+  renderBoardMarkers();
+  messageElement.textContent = "Updating position...";
+  newGameButton.disabled = true;
+  colorSelect.disabled = true;
+  timeSelect.disabled = true;
+  if (difficultySelect) difficultySelect.disabled = true;
+  boardElement.classList.add("locked");
+  void refresh().catch(showError);
 }
 
 function handleMoveInput(event) {
@@ -593,21 +827,23 @@ function handleMoveInput(event) {
       move.slice(0, 2) === event.squareFrom && move.slice(2, 4) === event.squareTo);
     if (!candidates.length) return false;
 
+    // Check if this move is a pawn promotion
+    const isPromotion = candidates.some((candidate) => candidate.length === 5);
+    if (isPromotion && typeof board.showPromotionDialog === "function") {
+      board.showPromotionDialog(event.squareTo, humanColor === "w" ? COLOR.white : COLOR.black, (result) => {
+        if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
+          const promoPiece = result.piece.charAt(1).toLowerCase(); // 'q', 'r', 'b', 'n'
+          const chosenMove = candidates.find((c) => c.endsWith(promoPiece)) || candidates[0];
+          applyPlayerMove(chosenMove);
+        } else {
+          render();
+        }
+      });
+      return true;
+    }
+
     const move = candidates.find((candidate) => candidate.endsWith("q")) ?? candidates[0];
-    pendingPly = { by: "player", move, beforePosition: position };
-    history.push(move);
-    highlightedMove = move;
-    arrows = [];
-    selectedSquare = null;
-    movePending = true;
-    renderBoardMarkers();
-    messageElement.textContent = "Updating position...";
-    newGameButton.disabled = true;
-    colorSelect.disabled = true;
-    timeSelect.disabled = true;
-    if (difficultySelect) difficultySelect.disabled = true;
-    boardElement.classList.add("locked");
-    void refresh().catch(showError);
+    applyPlayerMove(move);
     return true;
   }
 
@@ -621,19 +857,23 @@ function handleMoveInput(event) {
 async function resetGame() {
   if (thinking || movePending || !ready) return;
   humanColor = colorSelect.value;
+  boardOrientation = humanColor;
   currentOpponentId = difficultySelect?.value ?? "aeon";
   history = [];
   highlightedMove = "";
   arrows = [];
-  currentGameId = createGameId();
-  gameStartedAt = new Date().toISOString();
+  highlightedSquares.clear();
+  positionCounts.clear();
   commentaryElement.replaceChildren();
   pendingPly = null;
   if (tauntHistory) tauntHistory.reset();
-  if (tauntDelivery) tauntDelivery.newGame();
+  if (tauntDelivery) {
+    tauntDelivery.setOpponent(currentOpponentId);
+    tauntDelivery.newGame();
+  }
   if (tauntHistory) queueTaunt(tauntHistory.startEvent());
   selectedSquare = null;
-  await board.setOrientation(humanColor, true);
+  await board.setOrientation(boardOrientation, true);
   await request("new-game");
   await refresh();
 }
@@ -649,15 +889,127 @@ function showError(error) {
   boardElement.classList.add("locked");
 }
 
+function generatePgn() {
+  const [fen = ""] = (position ?? "").split("\n");
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
+  const whiteName = humanColor === "w" ? "Human" : (OPPONENTS[currentOpponentId]?.name ?? "Aeon");
+  const blackName = humanColor === "b" ? "Human" : (OPPONENTS[currentOpponentId]?.name ?? "Aeon");
+  let resultStr = "*";
+  if (gameOver) {
+    const [,, resCode = ""] = (position ?? "").split("\n");
+    if (resCode === "checkmate") {
+      const sideToMove = fen.split(" ")[1];
+      resultStr = sideToMove === "w" ? "0-1" : "1-0";
+    } else {
+      resultStr = "1/2-1/2";
+    }
+  }
+
+  let pgn = `[Event "Aeon Chess Match"]\n`;
+  pgn += `[Site "Aeon (Browser WebAssembly)"]\n`;
+  pgn += `[Date "${date}"]\n`;
+  pgn += `[Round "1"]\n`;
+  pgn += `[White "${whiteName}"]\n`;
+  pgn += `[Black "${blackName}"]\n`;
+  pgn += `[Result "${resultStr}"]\n\n`;
+
+  let moveText = "";
+  for (let i = 0; i < history.length; i++) {
+    if (i % 2 === 0) {
+      moveText += `${Math.floor(i / 2) + 1}. `;
+    }
+    moveText += `${history[i]} `;
+  }
+  pgn += (moveText.trim() ? moveText.trim() + " " : "") + resultStr;
+  return pgn;
+}
+
+function copyFeedback(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove("copied");
+    }, 1500);
+  }).catch(() => {
+    prompt("Copy text:", text);
+  });
+}
+
+// Event Listeners
+btnFlip?.addEventListener("click", async () => {
+  boardOrientation = boardOrientation === "w" ? "b" : "w";
+  await board.setOrientation(boardOrientation, true);
+  renderBoardMarkers();
+  renderUserAnnotations();
+  updateEvalBar();
+});
+
+btnSound?.addEventListener("click", () => {
+  const active = soundCtrl.toggle();
+  btnSound.textContent = active ? "🔊 Sound" : "🔇 Muted";
+  btnSound.classList.toggle("active", active);
+});
+
+toggleEval?.addEventListener("change", () => {
+  evalBarElement.classList.toggle("hidden", !toggleEval.checked);
+});
+
+btnCopyFen?.addEventListener("click", () => {
+  if (!position) return;
+  const fen = position.split("\n")[0];
+  copyFeedback(btnCopyFen, fen);
+});
+
+btnCopyPgn?.addEventListener("click", () => {
+  copyFeedback(btnCopyPgn, generatePgn());
+});
+
+btnImportFen?.addEventListener("click", () => {
+  importError.textContent = "";
+  importFenInput.value = "";
+  importModal?.showModal();
+});
+
+importCancelBtn?.addEventListener("click", () => {
+  importModal?.close();
+});
+
+importModal?.querySelector("form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const raw = importFenInput.value.trim();
+  if (!raw) return;
+
+  const tokens = raw.split(/\s+/);
+  const isMoveList = tokens.every((t) => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(t));
+  
+  if (isMoveList) {
+    try {
+      history = tokens;
+      await refresh();
+      importModal.close();
+    } catch (err) {
+      importError.textContent = `Invalid move sequence: ${err.message}`;
+    }
+  } else {
+    if (raw.split("/").length >= 8) {
+      importError.textContent = "Loading custom FEN starting positions directly requires full board state. Use move sequences or click New Game.";
+    } else {
+      importError.textContent = "Please enter valid UCI moves (e.g. 'e2e4 e7e5 g1f3').";
+    }
+  }
+});
+
 board.enableMoveInput(handleMoveInput);
 newGameButton.addEventListener("click", () => resetGame().catch(showError));
 colorSelect.addEventListener("change", () => resetGame().catch(showError));
-exportGamesButton?.addEventListener("click", () => exportGameArchive());
 difficultySelect?.addEventListener("change", () => {
   currentOpponentId = difficultySelect.value;
+  tauntDelivery?.setOpponent(currentOpponentId);
   publishGameContext();
 });
-void refreshArchiveStatus();
 boardElement.addEventListener("pointercancel", () => { arrowStart = null; });
 
 worker = new Worker(new URL("engine-worker.js", import.meta.url), { type: "module" });
@@ -667,6 +1019,7 @@ worker.onmessage = (event) => {
     ready = true;
     setStatus("Engine ready", "ready");
     tauntsReady.then(() => {
+      tauntDelivery?.setOpponent(currentOpponentId);
       if (tauntHistory) queueTaunt(tauntHistory.startEvent());
       return refresh();
     }).catch(showError);

@@ -10,32 +10,30 @@ The board uses the vendored `cm-chessboard` 8.15.4 library. It handles responsiv
 Install and activate the Emscripten SDK so `em++` is available in PowerShell, then run from the repository root:
 
 ```powershell
-./web/build.ps1
+./build.ps1
 ```
 
 The default network is `nets/best.bin`. To build with another exported network:
 
 ```powershell
-./web/build.ps1 -Net "nets/web_h128_candidate.bin"
+./build.ps1 -Net "nets/web_h128_candidate.bin"
 ```
 
-The output goes to `web/dist/` and is ignored by Git.
+The output goes to `dist/` and is ignored by Git.
 
 ## Run locally
 
 ```powershell
-./web/serve.ps1
+./serve.ps1
 ```
 
-Open `http://localhost:8000/`. The local server only serves static files; all chess calculations happen in the browser. Host the complete `web/` directory as a static site, including `vendor/` and the `dist/` build output.
+Open `http://localhost:8000/`. The local server only serves static files; all chess calculations happen in the browser. Host the complete repository directory as a static site, including `vendor/` and the `dist/` build output.
 
 The engine uses one search thread and WebAssembly SIMD. A separate Web Worker keeps the page responsive during searches. It uses the same packed `.bin` network format as the desktop engine.
 
-## Opponent profiles and saved games
+## Opponent profiles
 
-The browser offers Mark, Aeon, and Desperado profiles. They currently share the one network bundled in `dist/aeon.data`; the profiles scale search time to provide relative strength levels. Their Elo ratings have not been measured. Separate trained network files can be added when they are available.
-
-Completed games are saved in IndexedDB in the current browser, with the opponent, final position, result, and UCI move list. Use **Export game archive** to download a JSON archive. This stays on the device unless you export and share it. The records contain game results but no search-score labels, so they need a conversion step before they can join the existing self-play training data.
+The browser offers Mark, Aeon, and Desperado profiles. They currently share the one network bundled in `dist/aeon.data`; the profiles scale search time to provide relative strength levels and feature distinct commentary personalities. Separate trained network files can be added when they are available.
 
 ## Browser integration API
 

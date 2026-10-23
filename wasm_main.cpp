@@ -102,9 +102,9 @@ AEON_EXPORT const char* aeon_search(const char* moves, int movetime_ms) {
     if (!get_position(moves, pos, history)) return g_result.c_str();
 
     SearchLimits limits;
-    const int64_t hard = std::max(100, movetime_ms);
-    limits.soft_ms = hard * 2;
-    limits.hard_ms = hard;
+    const int64_t base = std::max(100, movetime_ms);
+    limits.soft_ms = base;
+    limits.hard_ms = base * 2;
     g_stop.store(false, std::memory_order_relaxed);
     g_node_slot[0].store(0, std::memory_order_relaxed);
     const Move best = g_worker.iterate(pos, limits, history, Clock::now(), g_node_slot, 1, false);

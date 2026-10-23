@@ -210,13 +210,187 @@
   const REPLY_BUTTONS = [["good_move", "Good move"], ["lucky", "Lucky!"], ["shut_up", "Shut up"]];
   const BAD = /fuck|shit|bitch|nazi/i;
 
+  const OPPONENT_PERSONALITIES = {
+    mark: {
+      game_start: [
+        "Hey! Good luck, let's have a fun game.",
+        "Hi! I'm Mark. Don't worry, I make plenty of mistakes.",
+        "Hope you go easy on me!",
+        "Let's play some chess and have fun!"
+      ],
+      player_blunder: [
+        "Wait, was that intentional? I might actually take that.",
+        "Uh... thanks? I think?",
+        "Did you mean to leave that hanging?",
+        "Ooh, I see an opening!"
+      ],
+      player_repeat_blunder: [
+        "Another one? You're being way too generous!",
+        "Are you sure about that move?"
+      ],
+      player_strong: [
+        "Ouch! That is a really strong move.",
+        "Nice find! You're making me sweat now.",
+        "I definitely didn't see that coming!"
+      ],
+      player_streak_strong: [
+        "Okay, you're officially scary right now.",
+        "Are you a grandmaster in disguise?!"
+      ],
+      bot_wins: [
+        "Good game! Honestly surprised I pulled that off.",
+        "Whew! That was close, thanks for the game!",
+        "Rematch whenever you're ready!"
+      ],
+      player_wins: [
+        "Well played! You completely outplayed me.",
+        "Nice win! I learned a lot from that one.",
+        "You're way too good at this!"
+      ],
+      draw: [
+        "A draw! I'll gladly take that result.",
+        "Evenly matched! Great game."
+      ],
+      reply_good_move: [
+        "Thanks! Pure luck honestly, haha.",
+        "Appreciate it! Trying my best."
+      ],
+      reply_lucky: [
+        "You got me there, total accident!",
+        "Haha, I'll take all the luck I can get."
+      ],
+      reply_shut_up: [
+        "Oops, my bad! Zipping it.",
+        "Fair enough, focusing on the board now!"
+      ],
+      reply_rematch: [
+        "Let's do it! Setting up the board.",
+        "Round two! Bring it on."
+      ]
+    },
+    aeon: {
+      game_start: [
+        "Analyzing position tree. Let us begin.",
+        "Neural network initialized. Evaluation online.",
+        "Commencing match. Depth: optimal.",
+        "Best of luck. I will execute with precision."
+      ],
+      player_blunder: [
+        "Suboptimal trajectory detected. Material consequence imminent.",
+        "Tactical evaluation shifted heavily. Did you overlook this continuation?",
+        "Positional imbalance increased drastically in my favor."
+      ],
+      player_repeat_blunder: [
+        "Compounding inaccuracies detected. Win probability deteriorating.",
+        "Repeated deviation from standard opening principles."
+      ],
+      player_strong: [
+        "Calculating... an exceptional continuation.",
+        "High engine precision detected on your last ply.",
+        "Evaluation shifted against my baseline. Well executed."
+      ],
+      player_streak_strong: [
+        "Consecutive optimal moves recorded. Highly impressive tactical vision.",
+        "Search tree re-anchoring required. You are playing near engine accuracy."
+      ],
+      bot_wins: [
+        "Checkmate sequence verified. Game concluded.",
+        "Calculation complete. Evaluation confirms decisive victory.",
+        "Match terminated. Mathematical certainty achieved."
+      ],
+      player_wins: [
+        "Terminal checkmate reached. Flawless execution on your end.",
+        "Neural evaluation was surpassed. A masterclass performance.",
+        "Loss logged. Analyzing tactical breakdown."
+      ],
+      draw: [
+        "Position evaluated as strictly dead equal. Draw accepted.",
+        "Dynamic equilibrium reached. Optimal play on both sides."
+      ],
+      reply_good_move: [
+        "Calculated as the optimal depth branch.",
+        "Efficiency was the only consideration."
+      ],
+      reply_lucky: [
+        "Probability variance is factored into the search.",
+        "Luck is simply complexity that hasn't been computed."
+      ],
+      reply_shut_up: [
+        "Suppressing verbal output. Search continues.",
+        "Commentary silenced."
+      ],
+      reply_rematch: [
+        "Resetting transposition table. New match initialized.",
+        "Ready for rematch. Recalibrating."
+      ]
+    },
+    desperado: {
+      game_start: [
+        "You think you can survive me? Let's find out.",
+        "I hope you brought your best, because I take no prisoners.",
+        "Don't blink, or your pieces will vanish.",
+        "Ready to be dismantled?"
+      ],
+      player_blunder: [
+        "Hahaha! What kind of move was THAT?",
+        "Gift accepted! Did you play that with your eyes closed?",
+        "Pathetic blunder. You're making this way too easy.",
+        "Thanks for the free material, rookie!"
+      ],
+      player_repeat_blunder: [
+        "Another blunder?! Are you trying to lose as fast as possible?",
+        "Just resign already and save your dignity!"
+      ],
+      player_strong: [
+        "Tch... beginner's luck.",
+        "Don't get cocky. That was an accident and you know it.",
+        "Annoying... but you won't get another chance like that."
+      ],
+      player_streak_strong: [
+        "Who gave you the cheat codes?!",
+        "Stop playing like a grandmaster, it's ruining my mood!"
+      ],
+      bot_wins: [
+        "Crushed! As expected. Better luck next lifetime!",
+        "Checkmate! That was barely a warmup for me.",
+        "And that is how chess is played. Bow down."
+      ],
+      player_wins: [
+        "WHAT?! Absolute fluke! Demand a rematch RIGHT NOW!",
+        "My mouse slipped! That win doesn't count!",
+        "Enjoy your one lucky moment. It won't happen again."
+      ],
+      draw: [
+        "A draw?! You survived by pure cowardice!",
+        "I let you off easy this time."
+      ],
+      reply_good_move: [
+        "Obviously. I don't play anything less than pure brilliance.",
+        "Take notes, you might learn something."
+      ],
+      reply_lucky: [
+        "Luck?! That's pure unadulterated genius!",
+        "Stay mad, you just got totally outplayed."
+      ],
+      reply_shut_up: [
+        "Make me! Maybe if you played better I'd have less to say!",
+        "Can't handle the truth, huh?"
+      ],
+      reply_rematch: [
+        "Good! Time for your punishment.",
+        "Back for more? I'll make it quick this time."
+      ]
+    }
+  };
+
   class TauntDelivery {
     constructor(o) {
       this.log = o.log; this.repliesEl = o.replies || null; this.lines = o.lines;
       this.getLine = o.getLine || null;
+      this.onRematch = o.onRematch || null;
       this.policy = o.policy || new TauntPolicy(o.policyOptions);
       this.rand = o.rand || Math.random;
-      this.speakAloud = !!o.speak;
+      this.opponent = o.opponent || "aeon";
       this.typing = o.typing !== false;
       this.thinkMs = o.thinkMs || [400, 1100];
       this.maxTypeMs = o.maxTypeMs || 2200;
@@ -224,6 +398,10 @@
       this.busy = false; this.over = false; this.lastEvent = null;
       this.reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
       this._renderReplies();
+    }
+
+    setOpponent(opponent) {
+      if (opponent) this.opponent = opponent;
     }
 
     async onEvent(ev) {
@@ -235,16 +413,33 @@
     }
 
     async _choose(pool, ev) {
+      // 1. Try personality-specific lines first with 75% chance if available
+      const personalityPool = OPPONENT_PERSONALITIES[this.opponent]?.[pool];
+      if (personalityPool && personalityPool.length && this.rand() < 0.75) {
+        const fresh = personalityPool.filter((t) => !this.policy.isRecent(t));
+        const src = fresh.length ? fresh : personalityPool;
+        const picked = src[Math.floor(this.rand() * src.length)];
+        return render(picked, ev);
+      }
+
+      // 2. Try neural model if available
       if (this.getLine) {
         for (let i = 0; i < 3; i++) {
           let t = null;
           try { t = await this.getLine(eventString(ev), ev, { isRecent: (x) => this.policy.isRecent(x) }); } catch (e) { t = null; }
-          t = t && render(String(t).trim(), ev);          // models return raw {piece}/{sq}/{cap}/{n} templates
+          t = t && render(String(t).trim(), ev);
           if (t && t.length >= 3 && t.length <= 120 && !BAD.test(t) && !/[{}]/.test(t) && !/\bnone\b/.test(t)
               && !this.policy.isRecent(t)) return t;
         }
       }
-      return this.policy.pick(pool, ev, this.lines, this.rand);
+
+      // 3. Fallback to generic pool or personality pool
+      const genericPicked = this.policy.pick(pool, ev, this.lines, this.rand);
+      if (genericPicked) return genericPicked;
+      if (personalityPool && personalityPool.length) {
+        return render(personalityPool[Math.floor(this.rand() * personalityPool.length)], ev);
+      }
+      return null;
     }
 
     async _say(text) {
@@ -258,9 +453,6 @@
         }
         await this._type(el, text);
         this.policy.remember(text);
-        if (this.speakAloud && typeof speechSynthesis !== "undefined") {
-          speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-        }
       } finally { this.busy = false; }
     }
 
@@ -296,15 +488,34 @@
     async reply(id, label) {
       if (this.busy) return;
       this._append("you", label);
+
+      // Clear buttons immediately to prevent spamming
+      if (this.repliesEl) this.repliesEl.innerHTML = "";
+
       const pool = "reply_" + id;
       const ev = this.lastEvent || newEvent();
-      const text = this.policy.pick(pool, ev, this.lines, this.rand);
+      let text = null;
+      const personalityPool = OPPONENT_PERSONALITIES[this.opponent]?.[pool];
+      if (personalityPool && personalityPool.length && this.rand() < 0.8) {
+        text = personalityPool[Math.floor(this.rand() * personalityPool.length)];
+      } else {
+        text = this.policy.pick(pool, ev, this.lines, this.rand);
+      }
       if (text) await this._say(text);
+
+      if (id === "rematch") {
+        if (typeof this.onRematch === "function") {
+          this.onRematch();
+        }
+      } else {
+        if (!this.over) {
+          this._renderReplies();
+        }
+      }
     }
 
     gameOver() { this.over = true; this._renderReplies(); }
     newGame() { this.over = false; this._renderReplies(); }
-    setSpeech(on) { this.speakAloud = !!on; }
     _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
   }
 
