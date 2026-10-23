@@ -729,14 +729,6 @@ function renderEvalChart(evals) {
   evalChart.append(path);
 }
 
-function winProbability(score) {
-  if (!score) return 0.5;
-  if (score.mate !== null) {
-    return score.mate > 0 ? 1.0 : 0.0;
-  }
-  const cp = score.eval_cp ?? 0;
-  return 1 / (1 + Math.pow(10, -cp / 400));
-}
 
 function classifyMove(winBefore, winAfter, isWhiteMove) {
   const delta = isWhiteMove ? (winBefore - winAfter) : (winAfter - winBefore);
