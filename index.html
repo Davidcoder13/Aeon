@@ -11,6 +11,7 @@
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/chessboard.css"/>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cm-chessboard@latest/assets/extensions/markers/markers.css"/>
+    <link rel="stylesheet" href="taunt.css">
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
@@ -34,6 +35,10 @@
 
         <aside class="panel">
           <div id="message" class="message" aria-live="polite">Starting Aeon...</div>
+          <section class="taunt-chat" aria-label="Aeon chat">
+            <div id="taunt-log" class="taunt-log" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <div id="taunt-replies" class="taunt-replies" aria-label="Quick replies"></div>
+          </section>
           <div id="model-commentary" class="model-commentary" aria-live="polite"></div>
 
           <label class="control">
@@ -76,6 +81,7 @@
       </section>
       <footer class="footer">Runs locally in your browser with WebAssembly. No game server. <a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></footer>
     </main>
+    <script src="./aeon-taunt.js"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

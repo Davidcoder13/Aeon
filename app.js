@@ -9,6 +9,7 @@ import {
   MARKER_TYPE
 } from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/markers/Markers.js";
 import { Accessibility } from "https://cdn.jsdelivr.net/npm/cm-chessboard@latest/src/extensions/accessibility/Accessibility.js";
+import { TauntModelClient } from "./taunt-model-client.js";
 
 const boardElement = document.querySelector("#board");
 const messageElement = document.querySelector("#message");
@@ -21,6 +22,8 @@ const timeSelect = document.querySelector("#move-time");
 const difficultySelect = document.querySelector("#difficulty");
 const newGameButton = document.querySelector("#new-game");
 const commentaryElement = document.querySelector("#model-commentary");
+const tauntLog = document.querySelector("#taunt-log");
+const tauntReplies = document.querySelector("#taunt-replies");
 const archiveStatusElement = document.querySelector("#archive-status");
 const exportGamesButton = document.querySelector("#export-games");
 
@@ -98,6 +101,34 @@ const OPPONENTS = {
 };
 
 const archiveDatabase = openArchiveDatabase();
+let tauntHistory = null;
+let tauntDelivery = null;
+let tauntModel = null;
+let tauntQueue = Promise.resolve();
+let pendingPly = null;
+
+try {
+  tauntModel = new TauntModelClient();
+} catch (error) {
+  console.warn("Aeon taunt model worker is unavailable; using templates:", error);
+}
+
+const tauntsReady = (async () => {
+  try {
+    const response = await fetch(new URL("./taunt-lines.json", import.meta.url));
+    if (!response.ok) throw new Error(`taunt lines returned ${response.status}`);
+    const { pools } = await response.json();
+    tauntHistory = new globalThis.AeonTaunt.TauntHistory();
+    tauntDelivery = new globalThis.AeonTaunt.TauntDelivery({
+      log: tauntLog,
+      replies: tauntReplies,
+      lines: pools,
+      getLine: (eventString) => tauntModel?.getLine(eventString) ?? null
+    });
+  } catch (error) {
+    console.warn("Aeon taunt templates are unavailable:", error);
+  }
+})();
 
 function setStatus(text, kind = "") {
   statusElement.textContent = text;
@@ -313,6 +344,105 @@ function isHumanTurn() {
   return ready && !thinking && !movePending && !gameOver && currentSide() === humanColor;
 }
 
+function boardFromFen(fen) {
+  const rows = fen.split(" ")[0].split("/");
+  const board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  rows.forEach((row, rowIndex) => {
+    let file = 0;
+    const rank = 7 - rowIndex;
+    for (const char of row) {
+      if (/\d/.test(char)) file += Number(char);
+      else board[rank][file++] = char;
+    }
+  });
+  return board;
+}
+
+function squareCoords(square) {
+  if (!/^[a-h][1-8]$/.test(square)) return null;
+  return [square.charCodeAt(0) - 97, Number(square[1]) - 1];
+}
+
+function pieceAt(board, square) {
+  const coords = squareCoords(square);
+  return coords ? board[coords[1]][coords[0]] : null;
+}
+
+function isKnightFork(board, square, moverColor) {
+  const coords = squareCoords(square);
+  if (!coords || pieceAt(board, square)?.toLowerCase() !== "n") return false;
+  const [file, rank] = coords;
+  const targets = [];
+  for (const [df, dr] of [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]]) {
+    const targetFile = file + df;
+    const targetRank = rank + dr;
+    if (targetFile < 0 || targetFile > 7 || targetRank < 0 || targetRank > 7) continue;
+    const target = board[targetRank][targetFile];
+    if (!target) continue;
+    const targetColor = target === target.toUpperCase() ? "w" : "b";
+    if (targetColor !== moverColor && target.toLowerCase() !== "p") targets.push(target.toLowerCase());
+  }
+  return targets.length >= 2 && targets.some((piece) => "rqk".includes(piece));
+}
+
+function scoreFields(rawScore) {
+  const score = Number(rawScore) || 0;
+  if (Math.abs(score) >= 31000 - 128) {
+    const moves = Math.max(1, Math.floor((31000 - Math.abs(score) + 1) / 2));
+    return { eval_cp: null, mate: Math.sign(score) * moves };
+  }
+  return { eval_cp: score, mate: null };
+}
+
+function plyData(beforePosition, move, by, afterPosition, score = { eval_cp: 0, mate: null }) {
+  const [beforeFen] = beforePosition.split("\n");
+  const [afterFen, , result = "playing", check = "clear"] = afterPosition.split("\n");
+  const from = move.slice(0, 2);
+  const to = move.slice(2, 4);
+  const fromCoords = squareCoords(from);
+  const toCoords = squareCoords(to);
+  const beforeBoard = boardFromFen(beforeFen);
+  const afterBoard = boardFromFen(afterFen);
+  const moved = pieceAt(beforeBoard, from);
+  let captured = pieceAt(beforeBoard, to);
+  const moverColor = beforeFen.split(" ")[1];
+  const enPassant = moved?.toLowerCase() === "p" && fromCoords[0] !== toCoords[0] && !captured;
+  if (enPassant) captured = beforeBoard[fromCoords[1]][toCoords[0]];
+  const pieceNames = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+  const piece = pieceNames[moved?.toLowerCase()] || "none";
+  const cap = pieceNames[captured?.toLowerCase()] || null;
+  const nonPawn = afterBoard.flat().reduce((sum, current) => sum + ({ n: 3, b: 3, r: 5, q: 9 }[current?.toLowerCase()] || 0), 0);
+  const botColor = humanColor === "w" ? "b" : "w";
+  const hasQueen = (color) => afterBoard.flat().some((current) => current?.toLowerCase() === "q" && (current === current.toUpperCase() ? "w" : "b") === color);
+
+  return {
+    by,
+    piece,
+    captured: cap,
+    frm: from,
+    to,
+    mover_color: moverColor,
+    castle: piece === "king" && Math.abs(fromCoords[0] - toCoords[0]) === 2,
+    promotion: move.length > 4,
+    en_passant: enPassant,
+    fork: isKnightFork(afterBoard, to, moverColor),
+    is_check: check === "check",
+    is_checkmate: result === "checkmate",
+    is_draw: result === "stalemate",
+    non_pawn: nonPawn,
+    fullmove: Number(afterFen.split(" ")[5]) || 1,
+    ...score,
+    queens_bot: hasQueen(botColor),
+    queens_player: hasQueen(humanColor)
+  };
+}
+
+function queueTaunt(event) {
+  if (!tauntDelivery || !event) return;
+  tauntQueue = tauntQueue.catch((error) => console.warn("Aeon taunt failed:", error))
+    .then(() => tauntDelivery.onEvent(event));
+}
+
 function renderBoardMarkers() {
   const markersExt = board.getExtension(Markers);
   if (!markersExt) return;
@@ -402,6 +532,16 @@ async function refresh(searchIfNeeded = true) {
   movePending = false;
   render();
   const side = parts[0].split(" ")[1];
+
+  if (pendingPly && gameOver) {
+    const terminalScore = parts[2] === "checkmate"
+      ? { eval_cp: null, mate: pendingPly.by === "player" ? -1 : 1 }
+      : { eval_cp: 0, mate: null };
+    const event = tauntHistory?.push(plyData(pendingPly.beforePosition, pendingPly.move, pendingPly.by, position, terminalScore));
+    pendingPly = null;
+    queueTaunt(event);
+  }
+  if (gameOver) tauntDelivery?.gameOver();
   if (searchIfNeeded && !gameOver && side !== humanColor && !thinking) await engineMove();
 }
 
@@ -416,15 +556,19 @@ async function engineMove() {
     });
     if (move.startsWith("ERROR:")) throw new Error(move);
     if (move) {
+      const beforePosition = position;
       history.push(move);
       highlightedMove = move;
       arrows = [];
       movePending = true;
+      await refresh(false);
+      const event = tauntHistory?.push(plyData(beforePosition, move, "bot", position, scoreFields("0")));
+      queueTaunt(event);
+      if (gameOver) tauntDelivery?.gameOver();
     }
   } finally {
     thinking = false;
   }
-  await refresh(false);
 }
 
 function handleMoveInput(event) {
@@ -442,6 +586,7 @@ function handleMoveInput(event) {
     if (!candidates.length) return false;
 
     const move = candidates.find((candidate) => candidate.endsWith("q")) ?? candidates[0];
+    pendingPly = { by: "player", move, beforePosition: position };
     history.push(move);
     highlightedMove = move;
     arrows = [];
@@ -475,6 +620,10 @@ async function resetGame() {
   currentGameId = createGameId();
   gameStartedAt = new Date().toISOString();
   commentaryElement.replaceChildren();
+  pendingPly = null;
+  if (tauntHistory) tauntHistory.reset();
+  if (tauntDelivery) tauntDelivery.newGame();
+  if (tauntHistory) queueTaunt(tauntHistory.startEvent());
   selectedSquare = null;
   await board.setOrientation(humanColor, true);
   await request("new-game");
@@ -509,7 +658,10 @@ worker.onmessage = (event) => {
   if (data.type === "ready") {
     ready = true;
     setStatus("Engine ready", "ready");
-    refresh().catch(showError);
+    tauntsReady.then(() => {
+      if (tauntHistory) queueTaunt(tauntHistory.startEvent());
+      return refresh();
+    }).catch(showError);
     return;
   }
   if (data.type === "init-error") {

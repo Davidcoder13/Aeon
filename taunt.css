@@ -1,0 +1,10 @@
+/* Minimal chat styling for the taunt log. Works in light and dark mode. */
+.taunt-log { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding: 8px; }
+.taunt-msg { max-width: 85%; padding: 6px 10px; border-radius: 12px; font: 14px/1.35 system-ui, sans-serif; }
+.taunt-msg.bot { align-self: flex-start; background: rgba(127, 127, 127, 0.18); }
+.taunt-msg.you { align-self: flex-end; background: rgba(60, 130, 246, 0.85); color: #fff; }
+.taunt-msg.thinking { opacity: 0.6; letter-spacing: 2px; }
+.taunt-replies { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 8px 8px; }
+.taunt-reply { font: 13px system-ui, sans-serif; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.5);
+               background: transparent; color: inherit; cursor: pointer; }
+.taunt-reply:hover { background: rgba(127, 127, 127, 0.2); }
