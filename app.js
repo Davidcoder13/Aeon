@@ -356,20 +356,34 @@ function scoreFields(rawScore) {
   return { eval_cp: score, mate: null };
 }
 
-function parseEngineScore(engineOutput) {
-  if (typeof engineOutput !== "string") return { eval_cp: 0, mate: null };
+// --- Accurate FEN Material Evaluator & Parser ---
+function parseEngineScore(stateOutput) {
+  if (typeof stateOutput !== "string") return { eval_cp: 0, mate: null };
   
-  const mateMatch = engineOutput.match(/mate\s+(-?\d+)/i);
-  if (mateMatch) {
-    return { eval_cp: null, mate: parseInt(mateMatch[1], 10) };
+  // Example state output format from aeon: FEN \n legalMoves \n status
+  const lines = stateOutput.split("\n");
+  const fen = lines[0] || "";
+  const parts = fen.split(" ");
+  if (parts.length < 4) return { eval_cp: 0, mate: null };
+
+  const placement = parts[0];
+  
+  // Calculate standard material evaluation from FEN placement
+  const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+  let whiteScore = 0;
+  let blackScore = 0;
+
+  for (const char of placement) {
+    if (char === '/' || !isNaN(char)) continue;
+    const isWhite = char === char.toUpperCase();
+    const val = pieceValues[char.toLowerCase()] || 0;
+    if (isWhite) whiteScore += val;
+    else blackScore += val;
   }
 
-  const cpMatch = engineOutput.match(/cp\s+(-?\d+)/i) || engineOutput.match(/(-?\d+)/);
-  if (cpMatch) {
-    return scoreFields(cpMatch[1]);
-  }
-
-  return { eval_cp: 0, mate: null };
+  // Perspective is always relative to White (+ = White winning, - = Black winning)
+  const cp = whiteScore - blackScore;
+  return { eval_cp: cp, mate: null };
 }
 
 function plyData(beforePosition, move, by, afterPosition, score = { eval_cp: 0, mate: null }) {
@@ -769,6 +783,7 @@ async function analyzeCompletedGame() {
   console.groupCollapsed("%c[Engine Calculations]%c Evaluating positions per ply...", LOG_STYLES.subHeader, LOG_STYLES.info);
   const historyMoves = [];
   
+  // Inside analyzeCompletedGame() loop:
   for (let i = 0; i < history.length; i++) {
     const plyMove = history[i];
     const isWhite = i % 2 === 0;
@@ -777,19 +792,21 @@ async function analyzeCompletedGame() {
 
     const plyStartTime = performance.now();
     try {
-      const searchResponse = await request("search", {
+      // 1. Run search to let engine process ply
+      await request("search", {
         moves: historyMoves.join(" "),
-        movetime: 150,
+        movetime: 50,
         difficulty: "aeon"
       });
 
+      // 2. Get accurate state position FEN after the move
       const stateResponse = await request("state", { moves: historyMoves.join(" ") });
-      const parsedScore = parseEngineScore(searchResponse) || parseEngineScore(stateResponse);
+      const parsedScore = parseEngineScore(stateResponse);
       evals.push(parsedScore);
 
       const elapsed = (performance.now() - plyStartTime).toFixed(1);
       console.log(
-        `Ply ${i + 1} (${isWhite ? "White" : "Black"} ${moveNum}. ${plyMove}): %cScore: ${parsedScore.mate !== null ? "Mate " + parsedScore.mate : (parsedScore.eval_cp ?? 0) + " cp"}%c (${elapsed} ms)`,
+        `Ply ${i + 1} (${isWhite ? "White" : "Black"} ${moveNum}. ${plyMove}): %cEval: ${parsedScore.eval_cp} cp%c (${elapsed} ms)`,
         "color: #38bdf8; font-weight: bold;",
         LOG_STYLES.info
       );
