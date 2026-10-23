@@ -30,6 +30,11 @@ const commentaryElement = document.querySelector("#model-commentary");
 const tauntLog = document.querySelector("#taunt-log");
 const tauntReplies = document.querySelector("#taunt-replies");
 
+// Analyzer Modal DOM Elements
+const analysisModal = document.querySelector("#analysis-modal");
+const analysisCloseBtn = document.querySelector("#analysis-close");
+const evalChart = document.querySelector("#eval-chart");
+
 const board = new Chessboard(boardElement, {
   position: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
   orientation: COLOR.white,
@@ -133,6 +138,25 @@ const tauntsReady = (async () => {
   }
 })();
 
+// Console Styling Palette for Game Review
+const LOG_STYLES = {
+  header: "background: #2563eb; color: #ffffff; font-weight: bold; padding: 2px 6px; border-radius: 4px;",
+  subHeader: "color: #38bdf8; font-weight: bold;",
+  success: "color: #4ade80; font-weight: bold;",
+  info: "color: #94a3b8;",
+  whiteMove: "color: #e2e8f0; font-weight: bold;",
+  blackMove: "color: #64748b; font-weight: bold;",
+  best: "background: #16a34a; color: #fff; padding: 1px 4px; border-radius: 3px;",
+  good: "background: #ca8a04; color: #fff; padding: 1px 4px; border-radius: 3px;",
+  inaccuracy: "background: #d97706; color: #fff; padding: 1px 4px; border-radius: 3px;",
+  mistake: "background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px;",
+  blunder: "background: #991b1b; color: #fff; padding: 1px 4px; border-radius: 3px;"
+};
+
+analysisCloseBtn?.addEventListener("click", () => {
+  analysisModal?.classList.remove("active");
+});
+
 function setStatus(text, kind = "") {
   statusElement.textContent = text;
   statusElement.className = `engine-status ${kind}`.trim();
@@ -234,7 +258,6 @@ function renderUserAnnotations() {
 boardElement.addEventListener("contextmenu", (event) => event.preventDefault());
 boardElement.addEventListener("pointerdown", (event) => {
   if (event.button === 0) {
-    // Left-click clears arrows and square highlights if clicked outside active move start
     if (arrows.length > 0 || highlightedSquares.size > 0) {
       arrows = [];
       highlightedSquares.clear();
@@ -255,7 +278,6 @@ window.addEventListener("pointerup", (event) => {
   arrowStart = null;
   if (!to) return;
   if (from === to) {
-    // Right-click single square: toggle square highlight
     if (highlightedSquares.has(from)) highlightedSquares.delete(from);
     else highlightedSquares.add(from);
     renderUserAnnotations();
@@ -332,6 +354,22 @@ function scoreFields(rawScore) {
     return { eval_cp: null, mate: Math.sign(score) * moves };
   }
   return { eval_cp: score, mate: null };
+}
+
+function parseEngineScore(engineOutput) {
+  if (typeof engineOutput !== "string") return { eval_cp: 0, mate: null };
+  
+  const mateMatch = engineOutput.match(/mate\s+(-?\d+)/i);
+  if (mateMatch) {
+    return { eval_cp: null, mate: parseInt(mateMatch[1], 10) };
+  }
+
+  const cpMatch = engineOutput.match(/cp\s+(-?\d+)/i) || engineOutput.match(/(-?\d+)/);
+  if (cpMatch) {
+    return scoreFields(cpMatch[1]);
+  }
+
+  return { eval_cp: 0, mate: null };
 }
 
 function plyData(beforePosition, move, by, afterPosition, score = { eval_cp: 0, mate: null }) {
@@ -506,13 +544,13 @@ async function refresh(searchIfNeeded = true) {
     pendingPly = null;
     queueTaunt(event);
   }
-  if (gameOver) tauntDelivery?.gameOver();
-  if (searchIfNeeded && !gameOver && side !== humanColor && !thinking) await engineMove();
 
   if (gameOver) {
     tauntDelivery?.gameOver();
     void analyzeCompletedGame();
   }
+
+  if (searchIfNeeded && !gameOver && side !== humanColor && !thinking) await engineMove();
 }
 
 async function engineMove() {
@@ -575,12 +613,11 @@ function handleMoveInput(event) {
       move.slice(0, 2) === event.squareFrom && move.slice(2, 4) === event.squareTo);
     if (!candidates.length) return false;
 
-    // Check if this move is a pawn promotion
     const isPromotion = candidates.some((candidate) => candidate.length === 5);
     if (isPromotion && typeof board.showPromotionDialog === "function") {
       board.showPromotionDialog(event.squareTo, humanColor === "w" ? COLOR.white : COLOR.black, (result) => {
         if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
-          const promoPiece = result.piece.charAt(1).toLowerCase(); // 'q', 'r', 'b', 'n'
+          const promoPiece = result.piece.charAt(1).toLowerCase();
           const chosenMove = candidates.find((c) => c.endsWith(promoPiece)) || candidates[0];
           applyPlayerMove(chosenMove);
         } else {
@@ -636,6 +673,191 @@ function showError(error) {
   boardElement.classList.add("locked");
 }
 
+// --- Analysis Controller Functions ---
+function renderEvalChart(evals) {
+  if (!evalChart) return;
+  evalChart.replaceChildren();
+
+  const width = evalChart.clientWidth || 600;
+  const height = evalChart.clientHeight || 140;
+  evalChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const points = evals.map((e, idx) => {
+    const x = (idx / Math.max(1, evals.length - 1)) * width;
+    const cpVal = e.mate !== null ? Math.sign(e.mate) * 1000 : (e.eval_cp || 0);
+    const clamped = Math.max(-600, Math.min(600, cpVal));
+    const y = height / 2 - (clamped / 600) * (height / 2 - 12);
+    return { x, y };
+  });
+
+  const zeroLine = document.createElementNS(SVG_NS, "line");
+  zeroLine.setAttribute("x1", 0);
+  zeroLine.setAttribute("y1", height / 2);
+  zeroLine.setAttribute("x2", width);
+  zeroLine.setAttribute("y2", height / 2);
+  zeroLine.setAttribute("stroke", "#334155");
+  zeroLine.setAttribute("stroke-dasharray", "4");
+  evalChart.append(zeroLine);
+
+  const pathD = points.reduce((acc, p, idx) => `${acc} ${idx === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`, "");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", pathD);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "#38bdf8");
+  path.setAttribute("stroke-width", "2.5");
+  evalChart.append(path);
+}
+
+function winProbability(score) {
+  if (!score) return 0.5;
+  if (score.mate !== null) {
+    return score.mate > 0 ? 1.0 : 0.0;
+  }
+  const cp = score.eval_cp ?? 0;
+  return 1 / (1 + Math.pow(10, -cp / 400));
+}
+
+function classifyMove(winBefore, winAfter, isWhiteMove) {
+  const delta = isWhiteMove ? (winBefore - winAfter) : (winAfter - winBefore);
+
+  if (delta <= 0.02) return { label: "Best", style: LOG_STYLES.best };
+  if (delta <= 0.06) return { label: "Good", style: LOG_STYLES.good };
+  if (delta <= 0.15) return { label: "Inaccuracy", style: LOG_STYLES.inaccuracy };
+  if (delta <= 0.30) return { label: "Mistake", style: LOG_STYLES.mistake };
+  return { label: "Blunder", style: LOG_STYLES.blunder };
+}
+
+let isAnalyzing = false;
+
+async function analyzeCompletedGame() {
+  if (!history.length || isAnalyzing) return;
+  isAnalyzing = true;
+
+  const startTime = performance.now();
+  console.group("%c[Aeon Game Review]%c Starting Analysis...", LOG_STYLES.header, LOG_STYLES.subHeader);
+  console.log(`%cTotal moves in history:%c ${history.length} (${Math.ceil(history.length / 2)} full moves)`, LOG_STYLES.info, "color: #fff");
+
+  let reviewBtn = document.querySelector("#review-game-btn");
+  if (!reviewBtn) {
+    reviewBtn = document.createElement("button");
+    reviewBtn.id = "review-game-btn";
+    reviewBtn.className = "review-trigger-btn";
+    reviewBtn.textContent = "Review Game";
+    reviewBtn.addEventListener("click", () => analysisModal?.classList.add("active"));
+    messageElement.after(reviewBtn);
+  }
+
+  analysisModal?.classList.add("active");
+  
+  const whiteAccuracyEl = document.querySelector("#white-accuracy");
+  const blackAccuracyEl = document.querySelector("#black-accuracy");
+  const whiteCountsEl = document.querySelector("#white-counts");
+  const blackCountsEl = document.querySelector("#black-counts");
+
+  if (whiteAccuracyEl) whiteAccuracyEl.textContent = "Analyzing...";
+  if (blackAccuracyEl) blackAccuracyEl.textContent = "Analyzing...";
+
+  const evals = [];
+  const whiteDeltas = [];
+  const blackDeltas = [];
+  
+  const whiteCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
+  const blackCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
+
+  evals.push({ eval_cp: 20, mate: null });
+
+  console.groupCollapsed("%c[Engine Calculations]%c Evaluating positions per ply...", LOG_STYLES.subHeader, LOG_STYLES.info);
+  const historyMoves = [];
+  
+  for (let i = 0; i < history.length; i++) {
+    const plyMove = history[i];
+    const isWhite = i % 2 === 0;
+    const moveNum = Math.floor(i / 2) + 1;
+    historyMoves.push(plyMove);
+
+    const plyStartTime = performance.now();
+    try {
+      const searchResponse = await request("search", {
+        moves: historyMoves.join(" "),
+        movetime: 150,
+        difficulty: "aeon"
+      });
+
+      const stateResponse = await request("state", { moves: historyMoves.join(" ") });
+      const parsedScore = parseEngineScore(searchResponse) || parseEngineScore(stateResponse);
+      evals.push(parsedScore);
+
+      const elapsed = (performance.now() - plyStartTime).toFixed(1);
+      console.log(
+        `Ply ${i + 1} (${isWhite ? "White" : "Black"} ${moveNum}. ${plyMove}): %cScore: ${parsedScore.mate !== null ? "Mate " + parsedScore.mate : (parsedScore.eval_cp ?? 0) + " cp"}%c (${elapsed} ms)`,
+        "color: #38bdf8; font-weight: bold;",
+        LOG_STYLES.info
+      );
+    } catch (err) {
+      console.error(`%cPly ${i + 1} failed:%c`, "color: #f87171;", LOG_STYLES.info, err);
+      evals.push(evals[evals.length - 1] || { eval_cp: 0, mate: null });
+    }
+  }
+  console.groupEnd();
+
+  console.group("%c[Move Classifications]%c Move Quality Breakdown", LOG_STYLES.subHeader, LOG_STYLES.info);
+  for (let i = 0; i < history.length; i++) {
+    const isWhite = i % 2 === 0;
+    const moveStr = history[i];
+    const moveNum = Math.floor(i / 2) + 1;
+    
+    const winBefore = winProbability(evals[i]);
+    const winAfter = winProbability(evals[i + 1]);
+    
+    const delta = isWhite ? Math.max(0, winBefore - winAfter) : Math.max(0, winAfter - winBefore);
+    const classification = classifyMove(winBefore, winAfter, isWhite);
+
+    console.log(
+      `Move ${moveNum}${isWhite ? "." : "..."} %c${moveStr.padEnd(5)}%c | %c${classification.label.padEnd(10)}%c | Win Prob Delta: -${(delta * 100).toFixed(1)}%`,
+      isWhite ? LOG_STYLES.whiteMove : LOG_STYLES.blackMove,
+      "",
+      classification.style,
+      LOG_STYLES.info
+    );
+
+    if (isWhite) {
+      whiteDeltas.push(delta);
+      whiteCounts[classification.label]++;
+    } else {
+      blackDeltas.push(delta);
+      blackCounts[classification.label]++;
+    }
+  }
+  console.groupEnd();
+
+  const calcAccuracy = (deltas) => {
+    if (!deltas.length) return 100;
+    const avgLoss = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    return Math.round(Math.max(0, 100 * Math.pow(1 - avgLoss, 0.85)));
+  };
+
+  const whiteAcc = calcAccuracy(whiteDeltas);
+  const blackAcc = calcAccuracy(blackDeltas);
+
+  if (whiteAccuracyEl) whiteAccuracyEl.textContent = `${whiteAcc}%`;
+  if (blackAccuracyEl) blackAccuracyEl.textContent = `${blackAcc}%`;
+
+  if (whiteCountsEl) {
+    whiteCountsEl.textContent = `${whiteCounts.Best} / ${whiteCounts.Good} / ${whiteCounts.Inaccuracy} / ${whiteCounts.Mistake} / ${whiteCounts.Blunder}`;
+  }
+  if (blackCountsEl) {
+    blackCountsEl.textContent = `${blackCounts.Best} / ${blackCounts.Good} / ${blackCounts.Inaccuracy} / ${blackCounts.Mistake} / ${blackCounts.Blunder}`;
+  }
+
+  renderEvalChart(evals);
+
+  const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
+  console.log(`%c[Analysis Complete]%c White: ${whiteAcc}% Accuracy | Black: ${blackAcc}% Accuracy (${totalTime}s)`, LOG_STYLES.success, "color: #fff");
+  console.groupEnd();
+  
+  isAnalyzing = false;
+}
+
 board.enableMoveInput(handleMoveInput);
 newGameButton.addEventListener("click", () => resetGame().catch(showError));
 colorSelect.addEventListener("change", () => resetGame().catch(showError));
@@ -673,187 +895,6 @@ worker.onmessage = (event) => {
   if (data.error) task.reject(new Error(data.error));
   else task.resolve(data.result);
 };
-
-
-// --- Chess.com-Style Game Review & Analyzer with Rich Console Logging ---
-const analysisModal = document.querySelector("#analysis-modal");
-const analysisCloseBtn = document.querySelector("#analysis-close");
-const evalChart = document.querySelector("#eval-chart");
-
-// Console Styling Palette
-const LOG_STYLES = {
-  header: "background: #2563eb; color: #ffffff; font-weight: bold; padding: 2px 6px; border-radius: 4px;",
-  subHeader: "color: #38bdf8; font-weight: bold;",
-  success: "color: #4ade80; font-weight: bold;",
-  info: "color: #94a3b8;",
-  whiteMove: "color: #e2e8f0; font-weight: bold;",
-  blackMove: "color: #64748b; font-weight: bold;",
-  best: "background: #16a34a; color: #fff; padding: 1px 4px; border-radius: 3px;",
-  good: "background: #ca8a04; color: #fff; padding: 1px 4px; border-radius: 3px;",
-  inaccuracy: "background: #d97706; color: #fff; padding: 1px 4px; border-radius: 3px;",
-  mistake: "background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px;",
-  blunder: "background: #991b1b; color: #fff; padding: 1px 4px; border-radius: 3px;"
-};
-
-analysisCloseBtn?.addEventListener("click", () => {
-  analysisModal?.classList.remove("active");
-});
-
-function winProbability(score) {
-  if (!score) return 0.5;
-  if (score.mate !== null) {
-    return score.mate > 0 ? 1.0 : 0.0;
-  }
-  const cp = score.eval_cp ?? 0;
-  return 1 / (1 + Math.pow(10, -cp / 400));
-}
-
-function classifyMove(winBefore, winAfter, isWhiteMove) {
-  const delta = isWhiteMove ? (winBefore - winAfter) : (winAfter - winBefore);
-
-  if (delta <= 0.02) return { label: "Best", style: LOG_STYLES.best };
-  if (delta <= 0.06) return { label: "Good", style: LOG_STYLES.good };
-  if (delta <= 0.15) return { label: "Inaccuracy", style: LOG_STYLES.inaccuracy };
-  if (delta <= 0.30) return { label: "Mistake", style: LOG_STYLES.mistake };
-  return { label: "Blunder", style: LOG_STYLES.blunder };
-}
-
-async function analyzeCompletedGame() {
-  if (!history.length) {
-    console.warn("%c[Aeon Analyzer]%c No move history to analyze.", LOG_STYLES.header, LOG_STYLES.info);
-    return;
-  }
-
-  const startTime = performance.now();
-  console.group("%c[Aeon Game Review]%c Starting Analysis...", LOG_STYLES.header, LOG_STYLES.subHeader);
-  console.log(`%cTotal moves in history:%c ${history.length} (${Math.ceil(history.length / 2)} full moves)`, LOG_STYLES.info, "color: #fff");
-
-  // Add "Review Game" button under message if not present
-  let reviewBtn = document.querySelector("#review-game-btn");
-  if (!reviewBtn) {
-    reviewBtn = document.createElement("button");
-    reviewBtn.id = "review-game-btn";
-    reviewBtn.className = "review-trigger-btn";
-    reviewBtn.textContent = "Review Game";
-    reviewBtn.addEventListener("click", () => analysisModal?.classList.add("active"));
-    messageElement.after(reviewBtn);
-  }
-
-  analysisModal?.classList.add("active");
-  
-  const whiteAccuracyEl = document.querySelector("#white-accuracy");
-  const blackAccuracyEl = document.querySelector("#black-accuracy");
-  const whiteCountsEl = document.querySelector("#white-counts");
-  const blackCountsEl = document.querySelector("#black-counts");
-
-  if (whiteAccuracyEl) whiteAccuracyEl.textContent = "Analyzing...";
-  if (blackAccuracyEl) blackAccuracyEl.textContent = "Analyzing...";
-
-  const evals = [];
-  const whiteDeltas = [];
-  const blackDeltas = [];
-  
-  const whiteCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
-  const blackCounts = { Best: 0, Good: 0, Inaccuracy: 0, Mistake: 0, Blunder: 0 };
-
-  // Starting position baseline
-  evals.push({ eval_cp: 20, mate: null });
-
-  // 1. Evaluate positions ply-by-ply
-  console.groupCollapsed("%c[Engine Calculations]%c Evaluating positions per ply...", LOG_STYLES.subHeader, LOG_STYLES.info);
-  const historyMoves = [];
-  
-  for (let i = 0; i < history.length; i++) {
-    const plyMove = history[i];
-    const isWhite = i % 2 === 0;
-    const moveNum = Math.floor(i / 2) + 1;
-    historyMoves.push(plyMove);
-
-    const plyStartTime = performance.now();
-    try {
-      // Query WASM Engine
-      const moveResult = await request("search", {
-        moves: historyMoves.join(" "),
-        movetime: 100,
-        difficulty: "aeon"
-      });
-
-      const parsedScore = scoreFields("0");
-      evals.push(parsedScore);
-
-      const elapsed = (performance.now() - plyStartTime).toFixed(1);
-      console.log(
-        `Ply ${i + 1} (${isWhite ? "White" : "Black"} ${moveNum}. ${plyMove}): %cScore: ${parsedScore.eval_cp ?? "Mate " + parsedScore.mate} cp%c (${elapsed} ms)`,
-        "color: #38bdf8; font-weight: bold;",
-        LOG_STYLES.info
-      );
-    } catch (err) {
-      console.error(`%cPly ${i + 1} failed:%c`, "color: #f87171;", LOG_STYLES.info, err);
-      evals.push(evals[evals.length - 1] || { eval_cp: 0, mate: null });
-    }
-  }
-  console.groupEnd();
-
-  // 2. Compute Move Quality & Classifications
-  console.group("%c[Move Classifications]%c Move Quality Breakdown", LOG_STYLES.subHeader, LOG_STYLES.info);
-  for (let i = 0; i < history.length; i++) {
-    const isWhite = i % 2 === 0;
-    const moveStr = history[i];
-    const moveNum = Math.floor(i / 2) + 1;
-    
-    const winBefore = winProbability(evals[i]);
-    const winAfter = winProbability(evals[i + 1]);
-    
-    const delta = isWhite ? Math.max(0, winBefore - winAfter) : Math.max(0, winAfter - winBefore);
-    const classification = classifyMove(winBefore, winAfter, isWhite);
-
-    console.log(
-      `Move ${moveNum}${isWhite ? "." : "..."} %c${moveStr.padEnd(5)}%c | %c${classification.label.padEnd(10)}%c | Win Prob Delta: -${(delta * 100).toFixed(1)}%`,
-      isWhite ? LOG_STYLES.whiteMove : LOG_STYLES.blackMove,
-      "",
-      classification.style,
-      LOG_STYLES.info
-    );
-
-    if (isWhite) {
-      whiteDeltas.push(delta);
-      whiteCounts[classification.label]++;
-    } else {
-      blackDeltas.push(delta);
-      blackCounts[classification.label]++;
-    }
-  }
-  console.groupEnd();
-
-  // CAPS Accuracy Calculation
-  const calcAccuracy = (deltas) => {
-    if (!deltas.length) return 100;
-    const avgLoss = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-    return Math.round(Math.max(0, 100 * Math.pow(1 - avgLoss, 0.85)));
-  };
-
-  const whiteAcc = calcAccuracy(whiteDeltas);
-  const blackAcc = calcAccuracy(blackDeltas);
-
-  // Update UI Elements
-  if (whiteAccuracyEl) whiteAccuracyEl.textContent = `${whiteAcc}%`;
-  if (blackAccuracyEl) blackAccuracyEl.textContent = `${blackAcc}%`;
-
-  if (whiteCountsEl) {
-    whiteCountsEl.textContent = `${whiteCounts.Best} / ${whiteCounts.Good} / ${whiteCounts.Inaccuracy} / ${whiteCounts.Mistake} / ${whiteCounts.Blunder}`;
-  }
-  if (blackCountsEl) {
-    blackCountsEl.textContent = `${blackCounts.Best} / ${blackCounts.Good} / ${blackCounts.Inaccuracy} / ${blackCounts.Mistake} / ${blackCounts.Blunder}`;
-  }
-
-  renderEvalChart(evals);
-
-  const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
-  console.log(`%c[Analysis Complete]%c White: ${whiteAcc}% Accuracy | Black: ${blackAcc}% Accuracy (Finished in ${totalTime}s)`, LOG_STYLES.success, "color: #fff");
-  console.groupEnd();
-}
-
-
 
 worker.onerror = (event) => {
   console.error("Worker failed to load or run. File path or syntax issue.", event);
