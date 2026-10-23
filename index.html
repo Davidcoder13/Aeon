@@ -81,5 +81,33 @@
     </main>
     <script src="./aeon-taunt.js"></script>
     <script type="module" src="app.js"></script>
+
+    <!-- Game Analysis Report Modal -->
+    <div id="analysis-modal" class="analysis-modal-overlay">
+      <div class="analysis-modal">
+        <div class="analysis-header">
+          <h2>Game Review & Analysis</h2>
+          <button id="analysis-close" class="analysis-close" type="button">&times;</button>
+        </div>
+        <div class="analysis-body">
+          <div class="analysis-stats">
+            <div class="player-stat-card">
+              <h3 id="white-player-title">White</h3>
+              <div id="white-accuracy" class="accuracy-badge">--%</div>
+              <div id="white-counts" class="classification-counts">0 / 0 / 0 / 0 / 0</div>
+            </div>
+            <div class="player-stat-card">
+              <h3 id="black-player-title">Black</h3>
+              <div id="black-accuracy" class="accuracy-badge">--%</div>
+              <div id="black-counts" class="classification-counts">0 / 0 / 0 / 0 / 0</div>
+            </div>
+          </div>
+          <div class="eval-chart-container">
+            <svg id="eval-chart" class="eval-chart-svg"></svg>
+          </div>
+          <p class="hint" style="text-align: center; margin: 0;">Evaluations computed via Aeon local WASM engine.</p>
+        </div>
+      </div>
+    </div> 
   </body>
 </html>
